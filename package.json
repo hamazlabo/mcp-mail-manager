@@ -1,0 +1,42 @@
+{
+  "name": "mcp-mail-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI エージェントとメールサーバ (IMAP/SMTP) を連携するリモート MCP サーバ",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "test:smoke": "vitest run --config vitest.smoke.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1136.0",
+    "@aws-sdk/client-s3": "^3.1136.0",
+    "@aws-sdk/client-scheduler": "^3.1136.0",
+    "@aws-sdk/client-secrets-manager": "^3.1136.0",
+    "@aws-sdk/lib-dynamodb": "^3.1136.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "imapflow": "^2.0.5",
+    "mailparser": "^3.9.28",
+    "nodemailer": "^10.0.10",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1136.0",
+    "@cdklabs/deploy-time-build": "^0.1.10",
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^22.20.4",
+    "@types/nodemailer": "^8.0.2",
+    "aws-cdk": "^2.1142.0",
+    "aws-cdk-lib": "^2.270.0",
+    "aws-sdk-client-mock": "^4.1.0",
+    "constructs": "^10.8.1",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
+  }
+}

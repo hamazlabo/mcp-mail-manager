@@ -1,0 +1,11 @@
+From: =?ISO-2022-JP?B?GyRCOzNFREJATzobKEI=?= <taro@example.jp>
+To: bob@example.net
+Date: Thu, 04 Sep 2026 08:30:00 +0900
+Subject: =?ISO-2022-JP?B?GyRCJUYlOSVIJE43b0w+GyhC?=
+Message-ID: <jis-001@example.jp>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="iso-2022-jp"
+Content-Transfer-Encoding: 7bit
+
+こんにちは、世界。
+本文です。

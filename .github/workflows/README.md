@@ -19,6 +19,7 @@ main には正常性テストを通過した commit だけが入る。人間は 
 | 契約 | 内容 |
 |------|------|
 | `npm test` | ユニットテスト。AWS 不要 |
+| `npm run build` | esbuild で `dist/mcp/main.js` を生成する。MCP コンテナの Dockerfile が参照するため `cdk synth` / `cdk deploy` の前に実行する（ARM64 イメージはデプロイ時に CodeBuild がビルドする: ADR-0005） |
 | `npm run test:smoke` | 正常性テスト。`CDK_OUTPUTS_FILE`（`cdk deploy --outputs-file` の JSON）と `STAGE` を読んでデプロイ済み環境を叩く |
 | `npx cdk deploy --all --context stage=<dev|prod>` | `stage` コンテキストでスタック名・パラメータを切り替える |
 | Node.js 22 | `node-version` を変える場合は 3 ファイルとも修正する |
@@ -47,6 +48,16 @@ main に対して次を推奨する。
   人間の直接 push も禁止したい場合は、GitHub App のトークンで push するよう promote ジョブを変え、その App を bypass list に入れる。
 
 ## AWS 側の設定（dev / prod 各アカウント）
+
+`infra/bootstrap/github-oidc.yaml`（CloudFormation）が以下 1〜3 をまとめて作成する。
+`deploy-dev.yml` / `deploy-prod.yml` の job は `environment` を持つため、OIDC トークンの `sub` は `repo:<OWNER>/<REPO>:environment:<name>` になる。テンプレートは `ref:refs/heads/<branch>` と `environment:<name>` の両方を許可している。
+
+```sh
+aws cloudformation deploy --template-file infra/bootstrap/github-oidc.yaml --stack-name github-oidc-deploy \
+  --capabilities CAPABILITY_NAMED_IAM --parameter-overrides Branch=develop EnvironmentName=dev --profile <dev profile>
+aws cloudformation deploy --template-file infra/bootstrap/github-oidc.yaml --stack-name github-oidc-deploy \
+  --capabilities CAPABILITY_NAMED_IAM --parameter-overrides Branch=main EnvironmentName=production --profile <prod profile>
+```
 
 1. IAM → Identity providers に GitHub の OIDC プロバイダを追加する。
    - Provider URL: `https://token.actions.githubusercontent.com`

@@ -1,0 +1,10 @@
+From: news@example.com
+To: bob@example.net
+Date: Tue, 02 Sep 2026 09:00:00 +0000
+Subject: Newsletter
+Message-ID: <html-001@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body><h1>Weekly &amp; News</h1><p>First paragraph with <b>bold</b> text.</p><p>Second paragraph.</p></body></html>

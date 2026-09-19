@@ -1,0 +1,9 @@
+{
+  "app": "npx tsx infra/bin/app.ts",
+  "output": "cdk.out",
+  "watch": {
+    "include": ["infra/**", "src/**"],
+    "exclude": ["node_modules", "cdk.out", "test"]
+  },
+  "context": {}
+}

@@ -1,0 +1,4 @@
+# イメージのビルドコンテキスト（= CDK アセット）を dist/mcp と docker/ だけに絞る
+*
+!dist/mcp/
+!docker/

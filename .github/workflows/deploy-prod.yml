@@ -31,6 +31,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: ビルド (dist/mcp/main.js — Dockerfile が参照する)
+        run: npm run build
 
       - name: AWS 認証 (OIDC)
         uses: aws-actions/configure-aws-credentials@v4

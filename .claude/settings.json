@@ -3,19 +3,23 @@
     "allow": [
       "Read(.spec/**)",
       "Edit(.spec/**)",
-      "Write(.spec/**)",
-      "Write(.learn/**)",
       "Edit(.learn/**)",
       "Read(.learn/**)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(ls:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(aws cloudformation deploy:*)",
+      "Bash(npx cdk bootstrap:*)",
+      "Bash(npx cdk deploy:*)",
+      "Bash(aws secretsmanager put-secret-value:*)",
+      "Bash(aws cognito-idp admin-create-user:*)",
+      "Bash(gh variable set:*)",
+      "Bash(git push:*)"
     ],
     "deny": [
-      "Edit(.spec/constitution.md)",
-      "Write(.spec/constitution.md)"
+      "Edit(.spec/constitution.md)"
     ]
   }
 }

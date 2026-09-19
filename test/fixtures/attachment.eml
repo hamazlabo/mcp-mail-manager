@@ -1,0 +1,19 @@
+From: Carol <carol@example.org>
+To: bob@example.net
+Date: Wed, 03 Sep 2026 12:00:00 +0900
+Subject: Report attached
+Message-ID: <att-001@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset="utf-8"
+
+See attached report.
+--b1
+Content-Type: application/pdf; name="report.pdf"
+Content-Disposition: attachment; filename="report.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJSVFT0YK
+--b1--

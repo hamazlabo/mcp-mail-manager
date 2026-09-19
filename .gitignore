@@ -3,3 +3,6 @@ node_modules/
 cdk.out/
 sdd-template/
 cdk-outputs.json
+.env
+dist/
+*.tsbuildinfo

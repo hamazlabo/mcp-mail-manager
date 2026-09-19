@@ -1,0 +1,17 @@
+From: Alice Example <alice@example.com>
+To: Bob <bob@example.net>, carol@example.org
+Cc: Dave <dave@example.com>
+Date: Mon, 01 Sep 2026 10:15:00 +0900
+Subject: Hello plain
+Message-ID: <plain-001@example.com>
+In-Reply-To: <orig-000@example.net>
+References: <root-000@example.net> <orig-000@example.net>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Hi Bob,
+
+this is the plain text body.
+-- 
+Alice

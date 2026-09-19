@@ -18,6 +18,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: ビルド (dist/mcp/main.js — Dockerfile が参照する)
+        run: npm run build
       - name: ユニットテスト
         run: npm test
       - name: CDK synth
