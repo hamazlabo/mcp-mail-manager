@@ -44,14 +44,16 @@ push develop → deploy-dev.yml
 main → deploy-prod.yml   OIDC で prod ロール → cdk deploy (stage=prod) → 正常性テスト
 ```
 
-- 人間は `main` に直接 push しない。`main` には正常性テストを通過した commit だけが入る。
+- 人間は `main` に直接 push しない。`main` には正常性テストを通過した commit だけが入る（Ruleset で直接 push を禁止し、GitHub Actions のみバイパス可）。
+- `develop` は Ruleset で PR 必須（メンテナのレビュー + CI `test` 通過）。管理者はバイパスできる。
+- `develop` への push で起動する deploy-dev は、Environment `dev` の必須レビュアー（メンテナ）が承認するまで待機する。外部 PR のマージが即デプロイにならないようにするためのゲート。
 - 文書だけの変更でも `develop` への push で dev / prod のデプロイが 1 周する（インフラ差分が無ければ数分で終わる）。
 - ワークフローが依存する契約: `npm test`、`npm run build`（`dist/mcp/main.js`。MCP コンテナの Dockerfile が参照）、`npm run test:smoke`（`CDK_OUTPUTS_FILE` と `STAGE` を読む）、`npx cdk deploy --all --context stage=<dev|prod>`。詳細と落とし穴は [.github/workflows/README.md](../.github/workflows/README.md)。
 
 | stage | AWS アカウント | トリガ | 昇格条件 |
 |-------|----------------|--------|----------|
 | dev | dev アカウント（Repository variable `AWS_DEV_ROLE_ARN`） | `develop` への push | 正常性テスト通過で `main` へ fast-forward |
-| prod | prod アカウント（Repository variable `AWS_PROD_ROLE_ARN`） | `main` 更新（promote ジョブが `workflow_dispatch` で起動） | なし（個人利用。必要なら Environment `production` に Required reviewers を後付け） |
+| prod | prod アカウント（Repository variable `AWS_PROD_ROLE_ARN`） | `main` 更新（promote ジョブが `workflow_dispatch` で起動） | なし（dev の承認ゲートを通過した commit のみ到達する） |
 
 ## アカウントの初回セットアップ（CI/CD 用、アカウントごとに 1 回）
 

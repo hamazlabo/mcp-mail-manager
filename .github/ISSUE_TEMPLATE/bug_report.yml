@@ -1,0 +1,38 @@
+name: バグ報告
+description: 期待どおりに動かない問題を報告する
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        セキュリティに関わる問題は Issue ではなく [非公開報告](https://github.com/hamazlabo/mcp-mail-manager/security/advisories/new) からお願いします。
+        メールアドレス、メール本文、トークンなどの個人情報や秘密情報は書かないでください。
+  - type: textarea
+    id: what
+    attributes:
+      label: 何が起きたか
+      description: 実際の挙動と、期待していた挙動
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 再現手順
+      description: 使った MCP ツールと引数、操作の順序など
+      placeholder: |
+        1. `search_messages` を `{ "query": "..." }` で呼ぶ
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: ログ・エラーメッセージ
+      description: CloudWatch Logs やクライアントのエラー出力。秘密情報はマスクしてください。
+      render: text
+  - type: input
+    id: env
+    attributes:
+      label: 環境
+      description: commit SHA、MCP クライアント（Claude Desktop など）、メールサーバの種類
+      placeholder: "例: 68a8885 / Claude Desktop / さくらのレンタルサーバ"

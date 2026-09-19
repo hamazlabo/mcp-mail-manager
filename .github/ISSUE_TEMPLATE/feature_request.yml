@@ -1,0 +1,29 @@
+name: 機能要望
+description: 新しい機能や改善を提案する
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 解決したい課題
+      description: 今どう困っていて、何ができるようになりたいか
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案する解決策
+      description: 想定している振る舞いや MCP ツールのインターフェース。未定でも構いません。
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 検討した代替案
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 影響範囲
+      options:
+        - label: 新しい MCP ツールの追加
+        - label: データモデル（DynamoDB / S3）の変更
+        - label: 認証方式やインフラ構成の変更
+        - label: 既存ツールの振る舞いの変更

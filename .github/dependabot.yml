@@ -1,0 +1,23 @@
+# 依存ライブラリと GitHub Actions の更新 PR を毎週作成する。PR の宛先は develop。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: develop
+    groups:
+      aws:
+        patterns:
+          - "@aws-sdk/*"
+          - "aws-cdk*"
+          - "@aws-cdk/*"
+          - "constructs"
+      dev-dependencies:
+        dependency-type: development
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: develop
