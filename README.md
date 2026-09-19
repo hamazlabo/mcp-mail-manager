@@ -17,6 +17,10 @@ AI エージェント（Claude Desktop / claude.ai / Claude Code などの MCP �
 
 ## 仕組み
 
+![構成図](docs/architecture.svg)
+
+図の元データは `docs/architecture.drawio`（SVG にも埋め込んであるので、SVG を draw.io で直接開いて編集できます）。CI/CD は [.spec/README.md](.spec/README.md) を参照。
+
 | 役割 | 実体 |
 |------|------|
 | MCP サーバ | Amazon Bedrock AgentCore Runtime 上のコンテナ（`src/mcp`）。OAuth 2.1 のトークンを AgentCore が検証する |
