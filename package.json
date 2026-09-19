@@ -2,6 +2,7 @@
   "name": "mcp-mail-manager",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "AI エージェントとメールサーバ (IMAP/SMTP) を連携するリモート MCP サーバ",
   "engines": {
     "node": ">=22"
