@@ -31,7 +31,7 @@
     "@cdklabs/deploy-time-build": "^0.1.10",
     "@types/html-to-text": "^9.0.4",
     "@types/mailparser": "^3.4.6",
-    "@types/node": "^22.20.4",
+    "@types/node": "^26.6.1",
     "@types/nodemailer": "^8.0.2",
     "aws-cdk": "^2.1142.0",
     "aws-cdk-lib": "^2.270.0",
@@ -39,7 +39,7 @@
     "constructs": "^10.8.1",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.13",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   }
 }
