@@ -2,6 +2,7 @@
  * MIME 解析（REQ-011）: 生メッセージからヘッダ・テキスト本文・添付メタ情報を取り出す。
  * mailparser は text/plain が無いとき text/html をテキスト化して `text` に入れる。添付の本体は返さない。
  */
+import { convert } from 'html-to-text';
 import { simpleParser, type AddressObject } from 'mailparser';
 import type { ParsedMessage } from './types';
 
@@ -32,11 +33,23 @@ export async function parseMessage(raw: Buffer): Promise<ParsedMessage> {
       inReplyTo: mail.inReplyTo,
       references,
     },
-    text: mail.text ?? '',
+    text: mail.text?.trim() ? mail.text : htmlToText(mail.html),
     attachments: mail.attachments.map((a) => ({
       filename: a.filename ?? 'attachment',
       contentType: a.contentType,
       size: a.size,
     })),
   };
+}
+
+/** text/plain が無く mailparser も text を作らなかった場合の保険（タグ無しの text/html など） */
+function htmlToText(html: string | false | undefined): string {
+  if (!html) return '';
+  return convert(String(html), {
+    wordwrap: false,
+    selectors: [
+      { selector: 'a', options: { hideLinkHrefIfSameAsText: true } },
+      { selector: 'img', format: 'skip' },
+    ],
+  });
 }

@@ -245,7 +245,7 @@
   - 完了条件: deploy-dev の正常性テストが green になり main が更新される
   - 依存: T-027, T-003
 
-- [ ] **T-029: 認証 E2E（Claude Code からの接続、手動確認）**
+- [x] **T-029: 認証 E2E（Claude Code からの接続、手動確認）**
   - 目的: `claude mcp add --transport http --client-id <UserPoolClientId> --callback-port 8765 mail <McpUrl>` でブラウザログインが完了し `tools/list` が見えることを確認する。失敗した場合は ADR-0004 を Superseded にして DCR シム案の ADR を起票する
   - 対応要件: REQ-051, REQ-050
   - 対象ファイル: README.md（登録手順）、必要なら .spec/adr/0005-*.md
@@ -316,3 +316,5 @@
 | T-031 | 2026-09-19 | テスト 5 本。構成は `infra/lib/scheduled-send.ts`（タイムアウト 5 分、DynamoDB は `LeadingKeys = SCHED#*` に限定、S3 なし）。SNS 宛先は context `alarmEmail`（cdk.json）。実送信の手動確認は deploy-dev 後 |
 | T-032 | 2026-09-19 | README にセットアップ（bootstrap / OIDC / Repository variables）、デプロイ、デプロイ後の一回限りの手順（Secrets、Cognito ユーザ `developer`、Claude 登録、アラーム購読）、ローカル開発、コスト、運用メモを記載。「README の手順だけで prod へ登録できる」の実地確認は人間が行う |
 | T-028 | 2026-09-19 | smoke 5 本 + outputs 4 本。deploy-dev（run 35431240064）で green になり main へ昇格。宛先は `smoke-test@example.invalid`（メール設定を読まないため）。判明した 2 件（動的参照が custom resource で解決されない / viewer-response がオリジンの 401 で呼ばれない）は L-0017 / L-0018 |
+| 実機テスト修正 | 2026-09-19 | Claude Desktop での手順 1〜6（2026-09-19）で判明した不具合 3 件を TDD で修正: 自分→自分のメールへの返信で宛先が空になる（REQ-021 どおり元 From へ）/ 存在しないフォルダへの移動が「uid not found」になる（imapflow が false を返すため移動先の存在確認を追加）/ タグ無し text/html のみのメールで本文が空（html-to-text で変換）。設計上の制約 2 件（同一 Message-ID の複数フォルダ、list_folders の件数は 15 分周期の同期スナップショット）はユーザ判断待ち |
+| T-029 | 2026-09-19 | Claude Desktop（claude.ai カスタムコネクタ、client ID 入力、シークレット無し）で prod に接続できることを人間が確認。初回は Cognito が `resource` を拒否して失敗し、リソースサーバ登録（ADR-0004 訂正、L-0020）で解消。Claude Code（`--callback-port 8765`）はブラウザのあるマシンで別途確認 |

@@ -135,6 +135,16 @@ describe('ImapFlowSession.move', () => {
     expect(client.calls[1].args).toEqual([[7], 'INBOX.Archive', { uid: true }]);
   });
 
+  it('reports a missing destination folder clearly when imapflow swallows the NO and returns false', async () => {
+    // 実サーバ（さくら）では imapflow の messageCopy が NO [TRYCREATE] を投げずに false を返す
+    const client = fakeClient(SAKURA_CAPS);
+    client.messageCopy = (async () => false) as never;
+    const session = new ImapFlowSession(client as never, config);
+
+    await expect(session.move('INBOX', 7, 'INBOX.Nope')).rejects.toThrow(/folder not found: INBOX\.Nope/);
+    expect(methods(client)).not.toContain('messageFlagsAdd');
+  });
+
   it('propagates the server NO error without leaking the password', async () => {
     const client = fakeClient(SAKURA_CAPS);
     client.messageCopy = async () => {

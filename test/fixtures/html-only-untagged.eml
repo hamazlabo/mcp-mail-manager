@@ -1,0 +1,14 @@
+From: no-reply@verificationemail.com
+To: contact@example.net
+Date: Sat, 19 Sep 2026 07:53:05 +0000
+Subject: Your temporary password
+Message-ID: <cognito-001@verificationemail.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="----=_Part_1_2.3"
+
+------=_Part_1_2.3
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+Your username is developer and temporary password is Abc123
+------=_Part_1_2.3--

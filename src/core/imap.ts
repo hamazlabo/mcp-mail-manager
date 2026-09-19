@@ -182,13 +182,21 @@ export class ImapFlowSession implements ImapSession {
     await this.open(folder);
     if (this.client.capabilities.has('MOVE')) {
       const res = await this.client.messageMove([uid], destination, { uid: true });
+      if (!res) await this.assertFolderExists(destination);
       return { folder: destination, uid: newUid(res, uid, folder) };
     }
     // MOVE 非対応（さくら）: COPY + \Deleted。imapflow の messageMove は非対応時に EXPUNGE まで行うので使わない
     const res = await this.client.messageCopy([uid], destination, { uid: true });
+    // imapflow は移動先が無い NO [TRYCREATE] を投げずに false を返すことがある。原因を区別して報告する
+    if (!res) await this.assertFolderExists(destination);
     const copied = newUid(res, uid, folder);
     await this.client.messageFlagsAdd([uid], ['\\Deleted'], { uid: true });
     return { folder: destination, uid: copied };
+  }
+
+  private async assertFolderExists(destination: string): Promise<void> {
+    const boxes = await this.client.list();
+    if (!boxes.some((b) => b.path === destination)) throw new Error(`folder not found: ${destination}`);
   }
 
   async append(folder: string, raw: Buffer, flags?: string[], date?: Date): Promise<{ uid?: number }> {

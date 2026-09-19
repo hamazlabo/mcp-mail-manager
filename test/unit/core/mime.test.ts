@@ -46,6 +46,13 @@ describe('parseMessage', () => {
     expect(parsed.text).toContain('本文です。');
   });
 
+  it('extracts text when the only part is text/html without tags (Cognito invitation style)', async () => {
+    // mailparser はこの形では text を生成しない。text/html があれば自前でテキスト化する
+    const parsed = await parseMessage(fixture('html-only-untagged.eml'));
+    expect(parsed.text.trim()).toBe('Your username is developer and temporary password is Abc123');
+    expect(parsed.headers.subject).toBe('Your temporary password');
+  });
+
   it('tolerates missing optional headers', async () => {
     const parsed = await parseMessage(Buffer.from('From: x@example.com\r\nTo: y@example.com\r\n\r\nbody only\r\n'));
     expect(parsed.headers.subject).toBe('');

@@ -209,6 +209,7 @@ DynamoDB テーブル `MailTable-<stage>`（PK: `PK` string, SK: `SK` string, �
 | Scheduled | `SCHED#<scheduleId>` | `META` | status(pending/sending/sent/failed/cancelled), sendAt, to[], cc[], bcc[], subject, body, messageId, scheduleName, attempts, error, createdAt, ttl(終端状態 +90d) | - | `SCHED` / `<sendAt>#<scheduleId>` |
 
 - `id` = `sha256(Message-ID ヘッダ)` の先頭 32 桁 hex。ヘッダが無い場合は `sha256("<folder>:<uidValidity>:<uid>")`。Message-ID ベースにすることで、フォルダ移動しても同じアイテムが更新される。
+  - 既知の制約: 同一 Message-ID が複数フォルダにある場合（自分宛に送ったメールの INBOX コピーと Sent コピーなど）は、最後に同期したフォルダのレコードだけが残る（L-0021）。
 - S3 バケット `mail-mcp-raw-<stage>-<account>`: キー `raw/<id>.eml`、SSE-S3、パブリックアクセス遮断、ライフサイクル 365 日で削除、バージョニング無し。
 - RemovalPolicy: テーブル・バケットとも prod は RETAIN、dev は DESTROY（dev のバケットは `autoDeleteObjects`）。
 

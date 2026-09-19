@@ -79,8 +79,10 @@ export function buildReply({ config, original, body, replyAll, messageId }: Repl
   const h = original.headers;
   const self = [config.address];
   const fromSelf = addressOf(h.from).toLowerCase() === config.address.toLowerCase();
-  // 自分が送ったメールへの返信は元の宛先へ。それ以外は元の差出人へ
-  const to = dedupe(fromSelf ? h.to : replyAll ? [h.from, ...h.to] : [h.from], self);
+  // 自分が送ったメールへの返信は元の宛先へ。それ以外は元の差出人へ。
+  // 自分を除いて宛先が無くなる（自分→自分のメール）場合は REQ-021 どおり元 From = 自分へ返信する
+  const candidates = dedupe(fromSelf ? h.to : replyAll ? [h.from, ...h.to] : [h.from], self);
+  const to = candidates.length ? candidates : dedupe([h.from], []);
   const cc = replyAll ? dedupe(h.cc, [...self, ...to]) : [];
   assertRecipients(to, cc);
   return {

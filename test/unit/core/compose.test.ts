@@ -107,6 +107,15 @@ describe('buildReply', () => {
     expect(m.cc).toEqual(['carol@example.org']);
   });
 
+  it('replies to self when the original was sent by self to self (REQ-021: To = original From)', () => {
+    const selfSent = withHeaders({ from: 'Me <me@example.net>', to: ['me@example.net'], cc: [] });
+    const reply = buildReply({ config, original: selfSent, body: 'note to self', replyAll: false, messageId: '<r@x>' });
+    expect(reply.to).toEqual(['Me <me@example.net>']);
+    const all = buildReply({ config, original: selfSent, body: 'note to self', replyAll: true, messageId: '<r@x>' });
+    expect(all.to).toEqual(['Me <me@example.net>']);
+    expect(all.cc ?? []).toEqual([]);
+  });
+
   it('replies to the original To when the original was sent by self', () => {
     const m = buildReply({
       config,
