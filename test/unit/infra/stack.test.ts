@@ -23,7 +23,8 @@ describe('MailMcpStack stage context', () => {
     expect(() => synth('staging')).toThrow(/stage/);
   });
 
+  // アセット（カスタムリソース）のステージングで初回 synth は数秒かかる
   it('synthesizes a template', () => {
     expect(() => Template.fromStack(synth('dev'))).not.toThrow();
-  });
+  }, 60_000);
 });

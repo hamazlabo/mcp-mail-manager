@@ -119,6 +119,8 @@ export interface ScheduledItem {
   attempts: number;
   error?: string;
   createdAt: string;
+  /** 最後の状態遷移時刻（ISO 8601）。scheduled.ts が更新 */
+  updatedAt?: string;
   /** 終端状態になってから 90 日（epoch 秒）。scheduled.ts が付与 */
   ttl?: number;
 }

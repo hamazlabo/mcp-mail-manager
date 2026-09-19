@@ -51,6 +51,7 @@ main に対して次を推奨する。
 
 `infra/bootstrap/github-oidc.yaml`（CloudFormation）が以下 1〜3 をまとめて作成する。
 `deploy-dev.yml` / `deploy-prod.yml` の job は `environment` を持つため、OIDC トークンの `sub` は `repo:<OWNER>/<REPO>:environment:<name>` になる。テンプレートは `ref:refs/heads/<branch>` と `environment:<name>` の両方を許可している。
+さらに GitHub は `sub` を `repo:<OWNER>@<ownerId>/<REPO>@<repoId>:...` という数値 ID 付きの形式で発行することがある（2026-09 に確認）。テンプレートは ID 無し / ID 付き（`@*`）の両方を `StringLike` で許可している。手書きする場合も同様に 4 パターンを入れること。
 
 ```sh
 aws cloudformation deploy --template-file infra/bootstrap/github-oidc.yaml --stack-name github-oidc-deploy \

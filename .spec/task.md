@@ -39,7 +39,7 @@
   - 完了条件: ローカルで outputs ファイル（手書き JSON）を与えて実行できる
   - 依存: T-002
 
-- [ ] **T-004: CI/CD の有効化（手動確認）**
+- [x] **T-004: CI/CD の有効化（手動確認）**
   - 目的: `.github/workflows/README.md` に従い dev / prod アカウントに OIDC ロールを作り、Repository variables を設定し、develop への push で dev デプロイと main 昇格が動く。3 ワークフローに `npm run build` ステップを追加し（ADR-0005: QEMU / buildx は不要）、OIDC プロバイダとデプロイロール（`iam:CreateServiceLinkedRole` 付き）を CloudFormation で両アカウントに作成し、Repository variables を設定する
   - 対応要件: NFR-003
   - 対象ファイル: .github/workflows/ci.yml, deploy-dev.yml, deploy-prod.yml（build ステップ追加）、infra/bootstrap/github-oidc.yaml（OIDC プロバイダ + デプロイロール）、GitHub / AWS 設定
@@ -105,7 +105,7 @@
   - 完了条件: テストが通る。`imapflow` を依存に追加
   - 依存: T-010
 
-- [ ] **T-012: SmtpSender（nodemailer ラッパ + Sent APPEND）**
+- [x] **T-012: SmtpSender（nodemailer ラッパ + Sent APPEND）**
   - 目的: `smtp.ts` が Message-ID を採番し、SMTP 送信後に同じ内容を IMAP の Sent フォルダへ APPEND する。SMTP 失敗時は APPEND しない
   - 対応要件: REQ-020
   - 対象ファイル: src/core/smtp.ts, test/unit/core/smtp.test.ts
@@ -131,7 +131,7 @@
   - 完了条件: テストが通り `cdk synth` が成功する
   - 依存: T-002
 
-- [ ] **T-015: 同期: フォルダ列挙と初回判定**
+- [x] **T-015: 同期: フォルダ列挙と初回判定**
   - 目的: `sync/folders.ts` が全フォルダを列挙し、SyncState の有無 / UIDVALIDITY 変化から「初回（過去 90 日）」「差分」「再取込」を判定し、Folder アイテムの特殊フォルダ属性を保存する
   - 対応要件: REQ-002, REQ-012, REQ-001
   - 対象ファイル: src/sync/folders.ts, test/unit/sync/folders.test.ts
@@ -139,7 +139,7 @@
   - 完了条件: テスト 3 本が通る
   - 依存: T-011, T-009
 
-- [ ] **T-016: 同期: 取込フェーズ**
+- [x] **T-016: 同期: 取込フェーズ**
   - 目的: `sync/ingest.ts` が対象 UID を 50 通ずつ取得し（`BODY.PEEK[]`）、S3 と DynamoDB へ保存、50 通ごとに lastUid を進め、時間予算（注入した時計）を超えたら中断する
   - 対応要件: REQ-001, REQ-004
   - 対象ファイル: src/sync/ingest.ts, test/unit/sync/ingest.test.ts
@@ -147,7 +147,7 @@
   - 完了条件: テスト 3 本が通る
   - 依存: T-015, T-006
 
-- [ ] **T-017: 同期: 照合フェーズとフォルダ集計**
+- [x] **T-017: 同期: 照合フェーズとフォルダ集計**
   - 目的: `sync/reconcile.ts` がフォルダ内の UID/FLAGS と DynamoDB の既知集合を突き合わせ、フラグ差分を更新し、IMAP に無いメッセージ（他フォルダで再発見されていないもの）を削除し、Folder の total / unread を更新する
   - 対応要件: REQ-003, REQ-012
   - 対象ファイル: src/sync/reconcile.ts, test/unit/sync/reconcile.test.ts
@@ -155,7 +155,7 @@
   - 完了条件: テスト 4 本が通る
   - 依存: T-016
 
-- [ ] **T-018: 同期 Lambda ハンドラと CDK（Scheduler rate 15 分）**
+- [x] **T-018: 同期 Lambda ハンドラと CDK（Scheduler rate 15 分）**
   - 目的: `sync/handler.ts` が T-015〜017 を順に実行し、CDK で Lambda（`NodejsFunction`, 512 MB, 15 分, VPC 外）と EventBridge Scheduler の `rate(15 minutes)` を定義する
   - 対応要件: REQ-001, NFR-004
   - 対象ファイル: src/sync/handler.ts, infra/lib/mail-mcp-stack.ts, test/unit/sync/handler.test.ts, test/unit/infra/sync.test.ts
@@ -173,7 +173,7 @@
   - 完了条件: テスト 3 本が通る。`@modelcontextprotocol/sdk`, `zod` を依存に追加
   - 依存: T-001
 
-- [ ] **T-020: ツール: list_folders / search_messages / get_message**
+- [x] **T-020: ツール: list_folders / search_messages / get_message**
   - 目的: 閲覧系 3 ツールを zod スキーマ付きで登録し、MailStore と mime.ts を使って応答する
   - 対応要件: REQ-010, REQ-011, REQ-012
   - 対象ファイル: src/mcp/tools/list_folders.ts, search_messages.ts, get_message.ts, test/unit/mcp/tools-read.test.ts
@@ -181,7 +181,7 @@
   - 完了条件: テスト 4 本が通る
   - 依存: T-019, T-008, T-009, T-006
 
-- [ ] **T-021: ツール: send_message / reply_message / forward_message**
+- [x] **T-021: ツール: send_message / reply_message / forward_message**
   - 目的: 送信系 3 ツールを登録し、compose.ts と SmtpSender で送信する
   - 対応要件: REQ-020, REQ-021, REQ-022
   - 対象ファイル: src/mcp/tools/send_message.ts, reply_message.ts, forward_message.ts, test/unit/mcp/tools-send.test.ts
@@ -189,7 +189,7 @@
   - 完了条件: テスト 3 本が通る
   - 依存: T-020, T-012
 
-- [ ] **T-022: ツール: set_read / set_flagged / move_message / trash_message**
+- [x] **T-022: ツール: set_read / set_flagged / move_message / trash_message**
   - 目的: 整理系 4 ツールを登録し、「IMAP 成功 → DynamoDB 更新」の順序を守る
   - 対応要件: REQ-030〜033
   - 対象ファイル: src/mcp/tools/set_read.ts, set_flagged.ts, move_message.ts, trash_message.ts, test/unit/mcp/tools-organize.test.ts
@@ -197,7 +197,7 @@
   - 完了条件: テスト 4 本が通る
   - 依存: T-020, T-011
 
-- [ ] **T-023: ツール: schedule_message / list_scheduled_messages / cancel_scheduled_message**
+- [x] **T-023: ツール: schedule_message / list_scheduled_messages / cancel_scheduled_message**
   - 目的: 予約系 3 ツールを登録し、DynamoDB へ `pending` を書いてから EventBridge Scheduler に `at(<日時>)` の一回限りスケジュールを作る。登録失敗時は `pending` を消す
   - 対応要件: REQ-040, REQ-041
   - 対象ファイル: src/mcp/tools/schedule_message.ts, list_scheduled_messages.ts, cancel_scheduled_message.ts, src/core/scheduler.ts, test/unit/mcp/tools-schedule.test.ts
@@ -205,7 +205,7 @@
   - 完了条件: テスト 4 本が通る。`@aws-sdk/client-scheduler` を依存に追加
   - 依存: T-020, T-013
 
-- [ ] **T-024: コンテナ化（Dockerfile + esbuild バンドル）**
+- [x] **T-024: コンテナ化（Dockerfile + esbuild バンドル）**
   - 目的: `npm run build` が `dist/mcp/main.js` を生成し、`docker/Dockerfile`（node:22-slim, ARM64。`dist/mcp/main.js` をコピーするだけ）でイメージが動く。ビルドコンテキストはリポジトリルートで `.dockerignore` により `dist/mcp` と `docker/` に限定する
   - 対応要件: REQ-050
   - 対象ファイル: docker/Dockerfile, .dockerignore, build.mjs（esbuild）, package.json, test/unit/build.test.ts
@@ -213,7 +213,7 @@
   - 完了条件: テストが通り、ローカルで `npm run build && docker build -f docker/Dockerfile .`（ホストのアーキテクチャ）と `docker run -p 8000:8000` の後 `tools/list` が返る（ARM64 ビルドは ADR-0005 によりデプロイ時に CodeBuild が行う）
   - 依存: T-023
 
-- [ ] **T-025: CDK: Cognito（User Pool / ドメイン / アプリクライアント / 正常性テスト用ユーザ）**
+- [x] **T-025: CDK: Cognito（User Pool / ドメイン / アプリクライアント / 正常性テスト用ユーザ）**
   - 目的: セルフサインアップ無効の User Pool、Managed Login ドメイン、公開アプリクライアント（Authorization Code + PKCE、コールバック `http://localhost:8765/callback` と `https://claude.ai/api/mcp/auth_callback`、`USER_PASSWORD_AUTH` 許可）、`AwsCustomResource` で smoke ユーザを作成し Secrets Manager `mail-mcp/<stage>/smoke-user` に生成パスワードを保存する
   - 対応要件: REQ-051, NFR-006
   - 対象ファイル: infra/lib/mail-mcp-stack.ts, test/unit/infra/cognito.test.ts
@@ -221,7 +221,7 @@
   - 完了条件: テストが通り `cdk synth` が成功する。Outputs に `UserPoolId`, `UserPoolClientId`, `CognitoDomain`, `SmokeUserSecretArn`
   - 依存: T-014
 
-- [ ] **T-026: CDK: AgentCore Runtime**
+- [x] **T-026: CDK: AgentCore Runtime**
   - 目的: `aws_bedrockagentcore.Runtime`（`@cdklabs/deploy-time-build` の `ContainerImageBuild`（`directory: '.'`, `file: 'docker/Dockerfile'`, `platform: LINUX_ARM64`）でデプロイ時に CodeBuild がビルドしたイメージを `AgentRuntimeArtifact.fromEcrRepository(image.repository, image.imageTag)` で渡す（ADR-0005）、`ProtocolType.MCP`、`RuntimeAuthorizerConfiguration.usingJWT(<Cognito discovery URL>, [<client id>])`、PUBLIC ネットワーク、環境変数 `STAGE` / `TABLE_NAME` / `BUCKET_NAME` / `MAIL_SECRET_ARN` / `SCHEDULE_GROUP`、idle timeout 5 分、実行ロールに DynamoDB R/W・S3 Get・Secrets Get・Scheduler Create/Delete・PassRole）を定義する
   - 対応要件: REQ-050, REQ-051, NFR-004
   - 対象ファイル: infra/lib/mail-mcp-stack.ts, test/unit/infra/agentcore.test.ts
@@ -229,7 +229,7 @@
   - 完了条件: テストが通り、develop への push で dev に Runtime がデプロイされ、Cognito の smoke ユーザのトークンで AgentCore 呼出 URL の `tools/list` が成功する（手動確認）。Outputs に `AgentRuntimeArn`
   - 依存: T-024, T-025, T-004
 
-- [ ] **T-027: CDK: CloudFront façade と CloudFront Functions**
+- [x] **T-027: CDK: CloudFront façade と CloudFront Functions**
   - 目的: `infra/functions/viewer-request.js`（well-known 2 本の応答、`/mcp` の URI 書換と `qualifier=DEFAULT` 付与、その他 404）と `viewer-response.js`（401 の `WWW-Authenticate` 上書き）を作り、CloudFront ディストリビューション（オリジン = AgentCore エンドポイント、CachingDisabled、AllViewerExceptHostHeader、許可メソッド ALL）に関連付ける。プレースホルダは synth 時に置換する
   - 対応要件: REQ-051, REQ-050
   - 対象ファイル: infra/functions/viewer-request.js, infra/functions/viewer-response.js, infra/lib/mail-mcp-stack.ts, test/unit/infra/functions.test.ts, test/unit/infra/cloudfront.test.ts
@@ -255,7 +255,7 @@
 
 ## フェーズ 4: 予約送信の実行系
 
-- [ ] **T-030: scheduled-send Lambda ハンドラ**
+- [x] **T-030: scheduled-send Lambda ハンドラ**
   - 目的: `scheduled-send/handler.ts` が `{ scheduleId }` を受け、`claimSending` → SMTP 送信 → Sent APPEND → `markSent`。`sending` で再発火した場合は Sent を Message-ID で検索し、あれば `sent`、無ければ `failed(unknown-delivery)`。SMTP 例外は attempts を加算して再スロー、3 回目で `failed`。`failed` 遷移時に EMF メトリクス `ScheduledSendFailed` を出力
   - 対応要件: REQ-042, REQ-043, NFR-008
   - 対象ファイル: src/scheduled-send/handler.ts, test/unit/scheduled-send/handler.test.ts
@@ -263,7 +263,7 @@
   - 完了条件: テスト 4 本が通る
   - 依存: T-013, T-012
 
-- [ ] **T-031: CDK: scheduled-send Lambda・Scheduler グループ・アラーム**
+- [x] **T-031: CDK: scheduled-send Lambda・Scheduler グループ・アラーム**
   - 目的: scheduled-send Lambda（ロールは DynamoDB の Scheduled アイテムと Secrets のみ、S3 なし）、Scheduler のスケジュールグループ `mail-mcp-<stage>` とターゲット起動ロール（再試行 3 回）、メトリクス `ScheduledSendFailed` のアラームと SNS トピック（メール購読先は context `alarmEmail`）を定義する
   - 対応要件: REQ-042, NFR-004, NFR-008
   - 対象ファイル: infra/lib/mail-mcp-stack.ts, test/unit/infra/scheduled-send.test.ts
@@ -298,3 +298,19 @@
 | T-009 | 2026-09-19 | テスト 14 本。Folder アイテムにも GSI2（`FOLDER` / name）を付け `listFolders` を Query で実装（design.md 4 章に追記）。DocumentClient は `removeUndefinedValues` |
 | T-011 | 2026-09-19 | テスト 12 本 + 静的テスト 1 本。imapflow の `messageMove` は MOVE 非対応時に EXPUNGE するため自前で COPY + \Deleted。`n:*` の結果は `uid >= n` でフィルタ。SPECIAL-USE は `specialUseSource !== 'name'` のみ採用 |
 | T-013 | 2026-09-19 | テスト 9 本。条件失敗時の現在状態は再 Get で取得（lib-dynamodb は `ConditionalCheckFailedException.Item` を unmarshall しないため） |
+| T-015 | 2026-09-19 | テスト 5 本。初回の途中終了は `uidFrom` 付き initial として再開 |
+| T-016 | 2026-09-19 | テスト 5 本。`\\Deleted` 付きはスキップ。時間予算は `clock.remainingMs() < 60 秒` で中断 |
+| T-017 | 2026-09-19 | テスト 5 本。削除前に `getMessage` で所属を再確認（GSI1 の結果整合性対策） |
+| T-020 | 2026-09-19 | テスト 7 本。nextCursor は `queryMessages` がキーを剥がすため `keys.*` で最後の項目のキーを復元 |
+| T-022 | 2026-09-19 | テスト 7 本。共通処理は `src/mcp/tools/organize.ts`。DynamoDB 更新は IMAP 成功直後（セッション内） |
+| T-023 | 2026-09-19 | テスト 9 本。`EventBridgeSendScheduler`（at() 式、ActionAfterCompletion=DELETE、再試行 3 回）。宛先検証は `buildNew` を呼ぶだけ |
+| T-004 | 2026-09-19 | OIDC ロールは `infra/bootstrap/github-oidc.yaml` で作成（sub は environment 付き・数値 ID 付き形式も許可、smoke-user シークレット読取を付与）。deploy-dev → main 昇格 → deploy-prod が green（run 35429068598） |
+| T-012 | 2026-09-19 | テスト 4 本。`SendError.phase` で SMTP 失敗（未送信）と APPEND 失敗（送信済み）を区別 |
+| T-021 | 2026-09-19 | テスト 6 本。共通処理は `src/mcp/tools/sending.ts` |
+| T-030 | 2026-09-19 | テスト 7 本。同時重複発火は `updatedAt` が 5 分以内の `sending` を「進行中」とみなし何もしない（design.md 3.3 に追記）。SMTP 失敗は `releaseToPending` で pending に戻して再スロー、3 回目で failed |
+| T-024 | 2026-09-19 | ビルドテストは `dist/mcp/main.js` を子プロセス起動し tools/list が 13 ツールを返すことを確認。ローカルで `docker build`（amd64, 81 MB）→ `docker run` → /ping 200・tools 13 を確認。ベースイメージは Docker Hub のレート制限を避け `public.ecr.aws/docker/library/node:22-slim` |
+| T-018 | 2026-09-19 | ハンドラテスト 3 本 + CDK assertions 3 本。構成は `infra/lib/sync-job.ts`（Scheduler L2 `Schedule` + `LambdaInvoke`、起動ロールは scheduled-send と共用）。dev への同期反映は deploy-dev 後に確認 |
+| T-025 | 2026-09-19 | テスト 5 本。`signInAliases` は username + email（smoke ユーザ名 `smoke` のため）。新 Managed Login には `CfnManagedLoginBranding` が必須。`AdminSetUserPassword` は動的参照でパスワードを渡し `Logging.withDataHidden()` |
+| T-026 | 2026-09-19 | テスト 5 本。`RuntimeAuthorizerConfiguration.usingCognito(userPool, [client])`、`AgentRuntimeArtifact.fromEcrRepository(image.repository, image.imageTag)`。`ContainerImageBuild` は `ignoreMode: IgnoreMode.DOCKER` 必須（GLOB だと `.env` 等が入る）。Scheduler グループと起動ロールもここで作成。手動確認は deploy-dev 後 |
+| T-027 | 2026-09-19 | 関数テスト 7 本 + CDK 3 本。façade 自身の URL は Host ヘッダから実行時に組み立てる。dev の well-known 確認は deploy-dev 後 |
+| T-031 | 2026-09-19 | テスト 5 本。構成は `infra/lib/scheduled-send.ts`（タイムアウト 5 分、DynamoDB は `LeadingKeys = SCHED#*` に限定、S3 なし）。SNS 宛先は context `alarmEmail`（cdk.json）。実送信の手動確認は deploy-dev 後 |

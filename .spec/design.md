@@ -123,8 +123,8 @@ test/
   - `POST /mcp` → MCP JSON-RPC（`initialize` / `tools/list` / `tools/call`）。応答は JSON。
   - `GET /ping` → 200（ローカル起動確認用）。その他は 404。
 - **処理**: Node `http.createServer` で `0.0.0.0:8000` を待ち受け、リクエストごとに `McpServer` と `StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })` を生成して `handleRequest` に渡す。プラットフォームが付与する `Mcp-Session-Id` ヘッダは無視する（拒否しない）。
-- **認証**: AgentCore Runtime の JWT 認可（Cognito discovery URL + allowedClients）が検証済みのリクエストのみ到達する。アプリはトークンを検証・保存・ログ出力しない。
-- **配布**: `npm run build`（esbuild）が `dist/mcp/main.js` を生成し、`docker/Dockerfile`（`node:22-slim`, ARM64）はそれをコピーして起動する。ビルドコンテキストはリポジトリルート（`.dockerignore` で `dist/mcp` と `docker/` 以外を除外）。CDK は `new ContainerImageBuild(this, 'McpImage', { directory: '.', file: 'docker/Dockerfile', platform: Platform.LINUX_ARM64 })` でデプロイ時に CodeBuild（ARM）上でビルドし、`AgentRuntimeArtifact.fromEcrRepository(image.repository, image.imageTag)` で Runtime に渡す（ADR-0005）。`cdk synth` / `cdk deploy` の前に `npm run build` を実行する。`lifecycleConfiguration.idleRuntimeSessionTimeout` = 5 分。
+- **認証**: AgentCore Runtime の JWT 認可（`RuntimeAuthorizerConfiguration.usingCognito(userPool, [client])` = Cognito discovery URL + allowedClients）が検証済みのリクエストのみ到達する。アプリはトークンを検証・保存・ログ出力しない。
+- **配布**: `npm run build`（esbuild）が `dist/mcp/main.js` を生成し、`docker/Dockerfile`（`node:22-slim`, ARM64）はそれをコピーして起動する。ビルドコンテキストはリポジトリルート（`.dockerignore` で `dist/mcp` と `docker/` 以外を除外）。CDK は `new ContainerImageBuild(this, 'McpImage', { directory: '.', file: 'docker/Dockerfile', platform: Platform.LINUX_ARM64, ignoreMode: IgnoreMode.DOCKER })`（`.dockerignore` を Docker の意味論で解釈させる。GLOB だと `.env` 等のドットファイルがアセットに入る）でデプロイ時に CodeBuild（ARM）上でビルドし、`AgentRuntimeArtifact.fromEcrRepository(image.repository, image.imageTag)` で Runtime に渡す（ADR-0005）。`cdk synth` / `cdk deploy` の前に `npm run build` を実行する。`lifecycleConfiguration.idleRuntimeSessionTimeout` = 5 分。
 - **依存**: core/*, DynamoDB, S3, Secrets Manager, IMAP/SMTP, EventBridge Scheduler
 
 ### 3.1b façade（CloudFront + CloudFront Functions）
@@ -181,6 +181,8 @@ MCP ツール一覧（名前は snake_case。入力は zod で定義し SDK が 
 - **状態遷移**（DynamoDB `ConditionExpression`）:
   - `pending → sending`（条件: `status = pending`）成功時のみ SMTP 送信 → Sent APPEND → `sending → sent`。
   - 条件失敗で現在 `sending` の場合: Sent フォルダを `UID SEARCH HEADER Message-ID <予約時に採番した ID>` で確認。あれば `sent`、無ければ `failed`（error = `unknown-delivery`）。再送しない。
+  - ただし `sending` の `updatedAt` が 5 分以内なら「別の実行が送信中」（Scheduler の同時重複発火）とみなして何もしない。結果不明の判定は 5 分より古い `sending` にだけ適用する。このため scheduled-send Lambda のタイムアウトは 5 分以下にする。
+  - SMTP 送信自体が失敗した場合（未送信が確実）は `sending → pending` に戻してから例外を再スローし、Scheduler の再試行に任せる。SMTP 成功後の Sent APPEND 失敗は `sent`（error = `sent-but-append-failed`）にして再送しない。
   - `cancelled` / `sent` / `failed` なら何もしない。
   - SMTP 例外: `attempts` を加算し例外を再スロー（Scheduler の再試行に委ねる、最大 3 回）。3 回目失敗で `failed`。
 - `failed` 遷移時に CloudWatch EMF でメトリクス `ScheduledSendFailed` = 1 を出力。
@@ -327,7 +329,7 @@ NFR-001（5 USD 以内、アイドル時 1 USD 未満）を満たす。dev / pro
   - REQ-051: トークン無しで façade の `POST /mcp` → 401 + façade の PRM を指す WWW-Authenticate、well-known 2 本が 200 で PKCE が広告されている。
   - REQ-050: `initialize` と `tools/list` が成功し 13 ツールが含まれる。
   - REQ-012 / REQ-010 / REQ-011: `list_folders` → `search_messages`（limit 5）→ 先頭の `get_message`（同期済みメールが 0 件なら検索の空応答までで合格）。
-  - REQ-040 / REQ-041: `schedule_message`（sendAt = 11 か月後、宛先 = 自分）→ `list_scheduled_messages` に pending で現れる → `cancel_scheduled_message`。実送信は発生しない。
+  - REQ-040 / REQ-041: `schedule_message`（sendAt = 11 か月後、宛先 = `smoke-test@example.invalid`。正常性テストはメール設定のシークレットを読まないため自分のアドレスは使わない）→ `list_scheduled_messages` に pending で現れる → `cancel_scheduled_message`。実送信は発生しない（取消に失敗しても宛先ドメインが無効なので届かない）。
   - NFR-005: 各呼出の所要時間を計測し上限超過で失敗。
   - 送信・整理ツールは正常性テストの対象外（実メールボックスを変更しない）。
 

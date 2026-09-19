@@ -50,9 +50,20 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
+                # GitHub の sub は `repo:<owner>/<repo>:...` に加え、owner / repo の数値 ID を含む
+                # `repo:<owner>@<ownerId>/<repo>@<repoId>:...` 形式で発行される（2026-09 に CloudTrail で確認）。
+                # job が environment を持つ場合は `ref:` ではなく `environment:<name>` になる。
                 token.actions.githubusercontent.com:sub:
                   - !Sub repo:${GitHubRepo}:ref:refs/heads/${Branch}
                   - !Sub repo:${GitHubRepo}:environment:${EnvironmentName}
+                  - !Sub
+                    - repo:${Owner}@*/${Name}@*:ref:refs/heads/${Branch}
+                    - Owner: !Select [0, !Split ['/', !Ref GitHubRepo]]
+                      Name: !Select [1, !Split ['/', !Ref GitHubRepo]]
+                  - !Sub
+                    - repo:${Owner}@*/${Name}@*:environment:${EnvironmentName}
+                    - Owner: !Select [0, !Split ['/', !Ref GitHubRepo]]
+                      Name: !Select [1, !Split ['/', !Ref GitHubRepo]]
       Policies:
         - PolicyName: cdk-deploy
           PolicyDocument:
@@ -62,6 +73,10 @@ Resources:
               - Effect: Allow
                 Action: sts:AssumeRole
                 Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/cdk-${CdkQualifier}-*-role-${AWS::AccountId}-${AWS::Region}
+              # 正常性テスト（npm run test:smoke）が Cognito の smoke ユーザのパスワードを読む
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mail-mcp/*/smoke-user*
               # AgentCore Runtime のサービスリンクロール作成（design.md 9 章）
               - Effect: Allow
                 Action: iam:CreateServiceLinkedRole

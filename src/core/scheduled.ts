@@ -95,8 +95,23 @@ async function markTerminal(
   );
 }
 
-export function markSent(ctx: ScheduledContext, scheduleId: string, now: Date): Promise<void> {
-  return markTerminal(ctx, scheduleId, 'sent', now);
+/** error は「送信はできたが Sent への APPEND に失敗した」等の注記（再送はしない）。 */
+export function markSent(ctx: ScheduledContext, scheduleId: string, now: Date, error?: string): Promise<void> {
+  return markTerminal(ctx, scheduleId, 'sent', now, error);
+}
+
+/** sending → pending。SMTP 未送信のまま失敗し、Scheduler の再試行に委ねるときに使う（REQ-043）。 */
+export async function releaseToPending(ctx: ScheduledContext, scheduleId: string, now: Date): Promise<void> {
+  await ctx.ddb.send(
+    new UpdateCommand({
+      TableName: ctx.tableName,
+      Key: keys.scheduled(scheduleId),
+      ConditionExpression: '#status = :sending',
+      UpdateExpression: 'SET #status = :pending, #updatedAt = :now',
+      ExpressionAttributeNames: { '#status': 'status', '#updatedAt': 'updatedAt' },
+      ExpressionAttributeValues: { ':sending': 'sending', ':pending': 'pending', ':now': now.toISOString() },
+    }),
+  );
 }
 
 /** REQ-043: 失敗理由を保存する。 */
