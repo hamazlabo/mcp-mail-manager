@@ -103,6 +103,17 @@ aws cognito-idp admin-create-user --profile <profile> --user-pool-id <UserPoolId
 User Pool は email をエイリアスにしているため、`--username` にメールアドレス形式は使えない（ログイン時はメールアドレスでもユーザ名でも可）。
 Cognito から仮パスワードの招待メールが届く。初回ログイン時に本パスワードを設定する。セルフサインアップは無効。
 
+招待メール（件名 `Your temporary password`、差出人 `no-reply@verificationemail.com`）は `multipart/alternative` に `text/html` パートだけを持ち、`text/plain` パートが無い。
+HTML を表示しないウェブメール（さくらのウェブメールの既定など）では本文が空に見えるので、「HTML で表示」または「ソースを表示」で読む。
+同期済みなら S3 の生メッセージから読むこともできる（本文は 1 行: `Your username is <ユーザ名> and temporary password is <仮パスワード>`）:
+
+```sh
+aws s3 ls s3://<BucketName>/raw/ --profile <profile>   # 該当メールの id は search_messages か DynamoDB で確認
+aws s3 cp s3://<BucketName>/raw/<id>.eml - --profile <profile> | tail -c 300
+```
+
+仮パスワードの有効期限は 7 日。切れた場合は `admin-create-user --message-action RESEND` で再送する。
+
 ### 3. Claude に登録する
 
 Claude Code:

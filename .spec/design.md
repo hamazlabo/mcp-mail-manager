@@ -122,7 +122,7 @@ test/
   - `POST /mcp` → MCP JSON-RPC（`initialize` / `tools/list` / `tools/call`）。応答は JSON。
   - `GET /ping` → 200（ローカル起動確認用）。その他は 404。
 - **処理**: Node `http.createServer` で `0.0.0.0:8000` を待ち受け、リクエストごとに `McpServer` と `StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })` を生成して `handleRequest` に渡す。プラットフォームが付与する `Mcp-Session-Id` ヘッダは無視する（拒否しない）。
-- **認証**: AgentCore Runtime の JWT 認可（`RuntimeAuthorizerConfiguration.usingCognito(userPool, [client])` = Cognito discovery URL + allowedClients）が検証済みのリクエストのみ到達する。アプリはトークンを検証・保存・ログ出力しない。
+- **認証**: AgentCore Runtime の JWT 認可（`RuntimeAuthorizerConfiguration.usingCognito(userPool, [client])` = Cognito discovery URL + allowedClients）が検証済みのリクエストのみ到達する。Cognito には `https://<façade>/mcp` を識別子とするリソースサーバを登録する（MCP クライアントが送る RFC 8707 `resource` を Cognito が受理する条件。未登録だと token 交換が `invalid_grant`）。アプリはトークンを検証・保存・ログ出力しない。
 - **配布**: `npm run build`（esbuild）が `dist/mcp/main.js` を生成し、`docker/Dockerfile`（`node:22-slim`, ARM64）はそれをコピーして起動する。ビルドコンテキストはリポジトリルート（`.dockerignore` で `dist/mcp` と `docker/` 以外を除外）。CDK は `new ContainerImageBuild(this, 'McpImage', { directory: '.', file: 'docker/Dockerfile', platform: Platform.LINUX_ARM64, ignoreMode: IgnoreMode.DOCKER })`（`.dockerignore` を Docker の意味論で解釈させる。GLOB だと `.env` 等のドットファイルがアセットに入る）でデプロイ時に CodeBuild（ARM）上でビルドし、`AgentRuntimeArtifact.fromEcrRepository(image.repository, image.imageTag)` で Runtime に渡す（ADR-0005）。`cdk synth` / `cdk deploy` の前に `npm run build` を実行する。`lifecycleConfiguration.idleRuntimeSessionTimeout` = 5 分。
 - **依存**: core/*, DynamoDB, S3, Secrets Manager, IMAP/SMTP, EventBridge Scheduler
 
@@ -282,7 +282,7 @@ Secrets Manager `mail-mcp/<stage>/mail`（人間が値を入れる。CDK はプ�
 
 ## 7. セキュリティ
 
-- 認証・認可: Cognito User Pool（セルフサインアップ無効、パスワードポリシー強、MFA は任意設定）。アクセストークン検証は AgentCore Runtime の JWT 認可（discovery URL = User Pool の `openid-configuration`、allowedClients = アプリクライアント ID）。façade（CloudFront）は認証を持たない。AgentCore の呼出 URL 自体が JWT 必須なので façade を迂回されても無認証では呼べない。
+- 認証・認可: Cognito User Pool（セルフサインアップ無効、パスワードポリシー強、MFA は任意設定、リソースサーバ `https://<façade>/mcp` を登録）。アクセストークン検証は AgentCore Runtime の JWT 認可（discovery URL = User Pool の `openid-configuration`、allowedClients = アプリクライアント ID）。façade（CloudFront）は認証を持たない。AgentCore の呼出 URL 自体が JWT 必須なので façade を迂回されても無認証では呼べない。
 - シークレット管理: IMAP/SMTP 認証情報は Secrets Manager `mail-mcp/<stage>/mail`。正常性テスト用 Cognito ユーザ `smoke` のパスワードは Secrets Manager `mail-mcp/<stage>/smoke-user-password`（CDK が生の文字列として生成。AwsCustomResource で `GetSecretValue` → `AdminCreateUser` + `AdminSetUserPassword`。動的参照 `{{resolve:secretsmanager}}` はカスタムリソースでは解決されないため使わない）。
 - 最小権限（Lambda ごとのロール）:
   - mcp-server（AgentCore 実行ロール、`bedrock-agentcore.amazonaws.com` が Assume）: ECR pull、CloudWatch Logs、DynamoDB R/W、S3 GetObject、Secrets GetSecretValue、Scheduler Create/Delete（スケジュールグループ限定）、`iam:PassRole`（scheduled-send 起動ロールのみ）。

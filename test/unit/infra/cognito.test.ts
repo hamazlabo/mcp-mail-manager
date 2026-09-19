@@ -81,6 +81,15 @@ describe('Cognito (User Pool / domain / app client / smoke user)', () => {
     });
   });
 
+  it('registers the MCP URL as a Cognito resource server so RFC 8707 resource requests are accepted', () => {
+    // MCP クライアントは authorize / token に resource=<McpUrl> を付ける。Cognito は未登録の resource を invalid_grant で拒否する
+    template.hasResourceProperties('AWS::Cognito::UserPoolResourceServer', {
+      UserPoolId: { Ref: Match.stringLikeRegexp('UserPool') },
+      Identifier: { 'Fn::Join': ['', ['https://', { 'Fn::GetAtt': [Match.stringLikeRegexp('Facade'), 'DomainName'] }, '/mcp']] },
+      Scopes: Match.arrayWith([Match.objectLike({ ScopeName: 'access' })]),
+    });
+  });
+
   it('exports UserPoolId, UserPoolClientId, CognitoDomain and SmokeUserSecretArn', () => {
     template.hasOutput('UserPoolId', {});
     template.hasOutput('UserPoolClientId', {});

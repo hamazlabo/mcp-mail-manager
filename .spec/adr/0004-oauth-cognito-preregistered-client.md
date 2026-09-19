@@ -14,7 +14,7 @@ MCP Authorization 仕様は OAuth 2.1（PKCE S256 必須、RFC 9728 Protected Re
 - Claude Desktop / claude.ai のカスタムコネクタは client ID（任意で secret）を入力でき、コールバックは `https://claude.ai/api/mcp/auth_callback`。
 - クライアントは 401 の `WWW-Authenticate: Bearer resource_metadata="..."` から Protected Resource Metadata を辿り、そこに書かれた認可サーバの `/.well-known/oauth-authorization-server` または `/.well-known/openid-configuration` を読む。
 
-AgentCore Runtime はインバウンド JWT 認可を内蔵し、Cognito の discovery URL と `allowedClients`（`client_id` クレーム）で検証する（ADR-0001）。Cognito のアクセストークンには `aud` が無いため `allowedAudience` は使わず、RFC 8707 の `resource` パラメータは Cognito が無視する（トークンの束縛は `client_id` で代替）。
+AgentCore Runtime はインバウンド JWT 認可を内蔵し、Cognito の discovery URL と `allowedClients`（`client_id` クレーム）で検証する（ADR-0001）。Cognito のアクセストークンには既定で `aud` が無いため `allowedAudience` は使わず、トークンの束縛は `client_id` で行う。RFC 8707 の `resource` パラメータについて当初「Cognito は無視する」と想定したが、実機（2026-09-19）では **authorize に付いた `resource` が登録済みリソースサーバの識別子と一致しないと、token 交換が `invalid_grant` になる**ことが分かった。McpUrl（`https://<façade>/mcp`）を識別子とするリソースサーバを登録すると成立し、アクセストークンに `aud` = McpUrl が入る。
 
 ユーザは静的トークンではなく OAuth 2.1（Cognito）を選択した。
 
@@ -23,6 +23,7 @@ AgentCore Runtime はインバウンド JWT 認可を内蔵し、Cognito の dis
 Cognito User Pool（セルフサインアップ無効、ユーザは開発者 1 名 + 正常性テスト用 1 名）と Managed Login ドメイン、**公開アプリクライアント 1 つ**（シークレットなし、Authorization Code + PKCE、コールバック URL に `http://localhost:8765/callback` と `https://claude.ai/api/mcp/auth_callback` を登録、正常性テスト用に `USER_PASSWORD_AUTH` も許可）を CDK で作成する。DCR / CIMD の代替実装は作らない。
 
 - トークン検証は AgentCore Runtime の JWT 認可（discovery URL = User Pool の `openid-configuration`、allowedClients = アプリクライアント ID）に委ねる。MCP サーバのコードは JWT を検証しない。
+- Cognito User Pool に MCP の URL（`https://<façade>/mcp`）を識別子とするリソースサーバ（スコープ `access`）を登録する。claude.ai / Claude Code が送る `resource=<McpUrl>` を Cognito が受理するために必須。
 - façade（ADR-0001、CloudFront Functions）が `GET /.well-known/oauth-protected-resource`（`resource` = façade の `/mcp`、`authorization_servers` = façade のベース URL）と `GET /.well-known/oauth-authorization-server`（Cognito の `authorization_endpoint` / `token_endpoint` / `jwks_uri` / `issuer` を転記し、`code_challenge_methods_supported: ["S256"]` と `response_types_supported: ["code"]` を明示）を静的 JSON で提供する。
 - 401 応答の `WWW-Authenticate` は façade の PRM URL を指す（viewer-request 関数がトークン無し / 期限切れを判定して返す。CloudFront はオリジンのエラー応答で viewer-response を呼ばないため上書き方式は使えない）。
 - Claude Code は Cognito を直接辿ると PKCE 記載欠落で失敗する（anthropics/claude-code #13275、#35846。未修正）ため、façade のメタデータが必須である。

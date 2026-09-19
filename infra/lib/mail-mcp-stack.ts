@@ -364,6 +364,15 @@ export class MailMcpStack extends Stack {
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
     });
 
+    // MCP クライアント（claude.ai / Claude Code）は authorize / token に resource=<McpUrl>（RFC 8707）を付ける。
+    // Cognito は resource を登録済みリソースサーバの識別子と照合し、未登録だと token 交換が invalid_grant になる（ADR-0004）
+    new cognito.UserPoolResourceServer(this, 'McpResourceServer', {
+      userPool: this.userPool,
+      identifier: `https://${this.distribution.distributionDomainName}/mcp`,
+      userPoolResourceServerName: 'mcp',
+      scopes: [new cognito.ResourceServerScope({ scopeName: 'access', scopeDescription: 'MCP access' })],
+    });
+
     new CfnOutput(this, 'McpUrl', { value: `https://${this.distribution.distributionDomainName}/mcp` });
   }
 }
