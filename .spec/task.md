@@ -237,7 +237,7 @@
   - 完了条件: テスト 5 本が通る。Outputs に `McpUrl`（`https://<distribution>.cloudfront.net/mcp`）。dev で well-known 2 本が 200 を返す（手動確認）
   - 依存: T-026
 
-- [ ] **T-028: 正常性テスト本体**
+- [x] **T-028: 正常性テスト本体**
   - 目的: `test/smoke/` が Secrets Manager の smoke-user で `InitiateAuth (USER_PASSWORD_AUTH)` のトークンを取り、design.md 9 章のユースケース（無トークン 401 + WWW-Authenticate、well-known 2 本、`initialize` / `tools/list` = 13 ツール、`list_folders` → `search_messages` → `get_message`、`schedule_message`（11 か月後・宛先自分）→ `list_scheduled_messages` → `cancel_scheduled_message`、各呼出の応答時間）を実行する
   - 対応要件: NFR-005, NFR-006, REQ-050, REQ-051
   - 対象ファイル: test/smoke/auth.ts, test/smoke/mcp-client.ts, test/smoke/*.smoke.test.ts
@@ -273,7 +273,7 @@
 
 ## フェーズ 5: 仕上げ
 
-- [ ] **T-032: README と運用手順**
+- [x] **T-032: README と運用手順**
   - 目的: デプロイ後の一回限りの手順（Secrets の値設定、Cognito 開発者ユーザ作成、Claude Code / Desktop への登録、アラームメールの購読確認）、ローカル開発（コンテナ起動、MCP Inspector）、コスト上限の目安を README に書く
   - 対応要件: NFR-001, NFR-006
   - 対象ファイル: README.md
@@ -309,8 +309,10 @@
 | T-021 | 2026-09-19 | テスト 6 本。共通処理は `src/mcp/tools/sending.ts` |
 | T-030 | 2026-09-19 | テスト 7 本。同時重複発火は `updatedAt` が 5 分以内の `sending` を「進行中」とみなし何もしない（design.md 3.3 に追記）。SMTP 失敗は `releaseToPending` で pending に戻して再スロー、3 回目で failed |
 | T-024 | 2026-09-19 | ビルドテストは `dist/mcp/main.js` を子プロセス起動し tools/list が 13 ツールを返すことを確認。ローカルで `docker build`（amd64, 81 MB）→ `docker run` → /ping 200・tools 13 を確認。ベースイメージは Docker Hub のレート制限を避け `public.ecr.aws/docker/library/node:22-slim` |
-| T-018 | 2026-09-19 | ハンドラテスト 3 本 + CDK assertions 3 本。構成は `infra/lib/sync-job.ts`（Scheduler L2 `Schedule` + `LambdaInvoke`、起動ロールは scheduled-send と共用）。dev への同期反映は deploy-dev 後に確認 |
+| T-018 | 2026-09-19 | ハンドラテスト 3 本 + CDK assertions 3 本。構成は `infra/lib/sync-job.ts`（Scheduler L2 `Schedule` + `LambdaInvoke`、起動ロールは scheduled-send と共用）。dev で確認済み: Secrets 投入後の初回同期で実メールボックスから 3 通が DynamoDB / S3 に入り、Folder の total / unread / lastSyncAt が 15 分周期で更新される |
 | T-025 | 2026-09-19 | テスト 5 本。`signInAliases` は username + email（smoke ユーザ名 `smoke` のため）。新 Managed Login には `CfnManagedLoginBranding` が必須。`AdminSetUserPassword` は動的参照でパスワードを渡し `Logging.withDataHidden()` |
-| T-026 | 2026-09-19 | テスト 5 本。`RuntimeAuthorizerConfiguration.usingCognito(userPool, [client])`、`AgentRuntimeArtifact.fromEcrRepository(image.repository, image.imageTag)`。`ContainerImageBuild` は `ignoreMode: IgnoreMode.DOCKER` 必須（GLOB だと `.env` 等が入る）。Scheduler グループと起動ロールもここで作成。手動確認は deploy-dev 後 |
+| T-026 | 2026-09-19 | テスト 5 本。`RuntimeAuthorizerConfiguration.usingCognito(userPool, [client])`、`AgentRuntimeArtifact.fromEcrRepository(image.repository, image.imageTag)`。`ContainerImageBuild` は `ignoreMode: IgnoreMode.DOCKER` 必須（GLOB だと `.env` 等が入る）。Scheduler グループと起動ロールもここで作成。dev で確認済み: smoke ユーザのトークンで façade 経由の tools/list が 13 ツールを返す（initialize 1.6 秒、各ツール 0.4 秒） |
 | T-027 | 2026-09-19 | 関数テスト 7 本 + CDK 3 本。façade 自身の URL は Host ヘッダから実行時に組み立てる。dev 実機で CloudFront がオリジンの 401 に viewer-response を呼ばない（`x-cache: Error from cloudfront`）と判明し、viewer-response を廃止して viewer-request がトークン無し / 期限切れを判定して 401 を返す方式に変更（テスト 9 本 + CDK 3 本）。well-known 2 本は dev で 200 を確認 |
 | T-031 | 2026-09-19 | テスト 5 本。構成は `infra/lib/scheduled-send.ts`（タイムアウト 5 分、DynamoDB は `LeadingKeys = SCHED#*` に限定、S3 なし）。SNS 宛先は context `alarmEmail`（cdk.json）。実送信の手動確認は deploy-dev 後 |
+| T-032 | 2026-09-19 | README にセットアップ（bootstrap / OIDC / Repository variables）、デプロイ、デプロイ後の一回限りの手順（Secrets、Cognito ユーザ `developer`、Claude 登録、アラーム購読）、ローカル開発、コスト、運用メモを記載。「README の手順だけで prod へ登録できる」の実地確認は人間が行う |
+| T-028 | 2026-09-19 | smoke 5 本 + outputs 4 本。deploy-dev（run 35431240064）で green になり main へ昇格。宛先は `smoke-test@example.invalid`（メール設定を読まないため）。判明した 2 件（動的参照が custom resource で解決されない / viewer-response がオリジンの 401 で呼ばれない）は L-0017 / L-0018 |
