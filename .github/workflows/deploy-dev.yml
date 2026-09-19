@@ -1,0 +1,71 @@
+# develop への push → dev アカウントへ CDK デプロイ → 正常性テスト → main へ昇格 → 本番デプロイを起動。
+# main には正常性テストを通過した commit だけが入る。
+name: deploy-dev
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+# dev スタックは 1 つなので、デプロイを直列化する。
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # main への fast-forward push
+  actions: write    # deploy-prod の workflow_dispatch
+  id-token: write   # OIDC
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+
+jobs:
+  deploy:
+    # ロール ARN が未設定（テンプレート導入直後）は何もしない。
+    if: ${{ vars.AWS_DEV_ROLE_ARN != '' }}
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ユニットテスト
+        run: npm test
+
+      - name: AWS 認証 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEV_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: CDK デプロイ (dev)
+        run: >-
+          npx cdk deploy --all
+          --context stage=dev
+          --require-approval never
+          --outputs-file cdk-outputs.json
+
+      - name: 正常性テスト
+        env:
+          STAGE: dev
+          CDK_OUTPUTS_FILE: cdk-outputs.json
+        run: npm run test:smoke
+
+  promote:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: テスト済み SHA を main へ fast-forward
+        run: git push origin "${GITHUB_SHA}:refs/heads/main"
+      # GITHUB_TOKEN による push は push イベントのワークフローを起動しないため、明示的に起動する。
+      - name: 本番デプロイを起動
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-prod.yml --ref main

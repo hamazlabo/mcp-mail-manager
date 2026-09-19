@@ -1,0 +1,24 @@
+# PR 時の検証。AWS 資格情報は不要。
+name: ci
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ユニットテスト
+        run: npm test
+      - name: CDK synth
+        run: npx cdk synth --all --quiet

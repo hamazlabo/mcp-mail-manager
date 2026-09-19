@@ -32,6 +32,8 @@ spec（specify / requirements / design / task / adr）はすべてこの憲法�
   - 統合テスト: AWS リソースに依存する境界（DynamoDB Local, LocalStack, または実環境のテスト用スタック）。
   - E2E: 主要ユースケースのみ。
 - CI でユニットテストが通らないものはマージしない。
+- ブランチ運用: `develop` への push で dev アカウントへ自動デプロイし、正常性テストを通過した commit だけを `main` に昇格する。人間は `main` に直接 push しない。
+- 正常性テスト (`npm run test:smoke`) はデプロイ済み環境に対して主要ユースケースを実行する。design.md にその対象を明記する。
 
 ## 4. 共通規律
 

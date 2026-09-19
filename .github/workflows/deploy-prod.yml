@@ -1,0 +1,52 @@
+# main の内容を prod アカウントへ CDK デプロイする。
+# 通常は deploy-dev の昇格ステップから起動される。手動 push 時にも動く。
+name: deploy-prod
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+
+jobs:
+  deploy:
+    if: ${{ vars.AWS_PROD_ROLE_ARN != '' }}
+    runs-on: ubuntu-latest
+    # Environment の required reviewers を設定すると、ここで人の承認を挟める。
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: AWS 認証 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PROD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: CDK デプロイ (prod)
+        run: >-
+          npx cdk deploy --all
+          --context stage=prod
+          --require-approval never
+          --outputs-file cdk-outputs.json
+
+      - name: 正常性テスト
+        env:
+          STAGE: prod
+          CDK_OUTPUTS_FILE: cdk-outputs.json
+        run: npm run test:smoke

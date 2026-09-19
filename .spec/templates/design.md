@@ -68,9 +68,20 @@ flowchart LR
 
 ## 9. テスト戦略
 
-- ユニット: {{対象・モック方針}}
+- ユニット (`npm test`): {{対象・モック方針}}
 - 統合: {{DynamoDB Local / LocalStack / テストスタック}}
-- E2E: {{対象ユースケース}}
+- 正常性テスト (`npm run test:smoke`): デプロイ後に dev / prod へ実行する。対象ユースケース:
+  - {{REQ-xxx: 主要ユースケース 1}}
+  - {{REQ-xxx: 主要ユースケース 2}}
+
+### 環境とデプロイ経路
+
+| stage | AWS アカウント | トリガ | 昇格条件 |
+|-------|----------------|--------|----------|
+| dev | {{account id}} | `develop` への push | 正常性テスト通過で `main` へ fast-forward |
+| prod | {{account id}} | `main` 更新 | Environment `production` の承認 {{あり / なし}} |
+
+CDK は `--context stage=<dev|prod>` でスタック名とパラメータを切り替える。詳細は `.github/workflows/README.md`。
 
 ## 10. 要件トレーサビリティ
 
