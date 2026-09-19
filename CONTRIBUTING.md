@@ -19,7 +19,7 @@ Issue と Pull Request を歓迎します。このリポジトリは Spec 駆動
    npm ci
    npm run typecheck
    npm test
-   npx cdk synth --all --quiet
+   npx cdk synth --context stage=dev --quiet
    ```
 
 5. PR テンプレートの項目を埋めて送ってください。

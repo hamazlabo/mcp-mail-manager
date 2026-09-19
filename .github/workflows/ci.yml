@@ -23,4 +23,4 @@ jobs:
       - name: ユニットテスト
         run: npm test
       - name: CDK synth
-        run: npx cdk synth --all --quiet
+        run: npx cdk synth --context stage=dev --quiet
