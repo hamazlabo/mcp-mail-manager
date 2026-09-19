@@ -160,6 +160,7 @@ STAGE=dev CDK_OUTPUTS_FILE=cdk-outputs.json AWS_PROFILE=<dev profile> npm run te
 ## 運用メモ
 
 - 削除は「ゴミ箱へ移動」だけで、EXPUNGE は発行しない（コードベースに存在しないことを静的テストで検証）
-- 同期は一方向（IMAP → AWS）。整理操作は IMAP を先に更新し、成功後に DynamoDB を更新する
+- 同期は一方向（IMAP → AWS）。整理操作は IMAP を先に更新し、成功後に DynamoDB を更新する。`list_folders` の件数・未読数は同期時点（`lastSyncAt`、15 分ごと）のスナップショットで、整理操作の直後には反映されない
+- メッセージ id は Message-ID とフォルダから導出する（ADR-0006）。`move_message` / `trash_message` の後は id が変わるので、応答の `id` を使う。自分宛に送ったメールは INBOX と Sent の両方に別レコードとして現れる
 - 予約送信は `pending → sending → sent | failed` を DynamoDB の条件付き更新で遷移させ、二重送信しない。送信結果が不明な場合は再送せず `failed(unknown-delivery)` にしてアラームで知らせる
 - ログには本文・認証情報・トークンを出さない

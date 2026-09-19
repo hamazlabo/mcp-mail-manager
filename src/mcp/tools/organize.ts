@@ -3,6 +3,7 @@
  * IMAP が失敗したら DynamoDB は変更せず isError を返す。
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { deriveId } from '../../core/ids';
 import type { ImapSession } from '../../core/imap';
 import type { MailConfig, MessageItem } from '../../core/types';
 import { withImap, type ToolContext } from '../context';
@@ -38,13 +39,19 @@ export function setFlag(ctx: ToolContext, id: string, flags: { seen?: boolean; f
   });
 }
 
-/** IMAP で移動してから DynamoDB の folder / uid / uidValidity を更新する（REQ-031, REQ-032） */
+/**
+ * IMAP で移動してから DynamoDB を更新する（REQ-031, REQ-032）。
+ * id はフォルダを含む（ADR-0006）ので、移動先の id で新レコードを作り旧レコードを消す。
+ * 生メッセージは同じ s3Key を参照し続ける（MCP 実行ロールは S3 に書けない）。
+ */
 export function moveTo(ctx: ToolContext, id: string, destination: (imap: ImapSession) => Promise<string>): Promise<CallToolResult> {
   return organize(ctx, id, async (item, imap) => {
     const folder = await destination(imap);
     const moved = await imap.move(item.folder, item.uid, folder);
     const { uidValidity } = await imap.select(moved.folder);
-    await ctx.store.updateLocation(id, { folder: moved.folder, uid: moved.uid, uidValidity });
-    return { id, folder: moved.folder };
+    const newId = deriveId({ messageId: item.messageId, folder: moved.folder, uidValidity, uid: moved.uid });
+    await ctx.store.putMessage({ ...item, id: newId, folder: moved.folder, uid: moved.uid, uidValidity });
+    await ctx.store.deleteMessage(item.id);
+    return { id: newId, folder: moved.folder };
   });
 }

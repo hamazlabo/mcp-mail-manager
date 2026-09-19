@@ -138,16 +138,6 @@ describe('MailStore messages', () => {
     expect(Object.values(input.ExpressionAttributeValues ?? {})).toEqual([true]);
   });
 
-  it('updateLocation rewrites folder, uid, uidValidity and the GSI1 keys', async () => {
-    ddbMock.on(UpdateCommand).resolves({});
-    await store().updateLocation(message.id, { folder: 'INBOX.Trash', uid: 7, uidValidity: 99 });
-
-    const input = ddbMock.commandCalls(UpdateCommand)[0].args[0].input;
-    expect(Object.values(input.ExpressionAttributeValues ?? {})).toEqual(
-      expect.arrayContaining(['INBOX.Trash', 7, 99, 'FOLDER#INBOX.Trash', 'UID#0000000007']),
-    );
-  });
-
   it('deleteMessage deletes by key', async () => {
     ddbMock.on(DeleteCommand).resolves({});
     await store().deleteMessage(message.id);
@@ -255,9 +245,9 @@ describe('MailStore raw messages (S3)', () => {
     expect(await store().getRaw('missing')).toBeUndefined();
   });
 
-  it('deleteRaw deletes raw/<id>.eml', async () => {
+  it('deleteRawKey deletes the given S3 key (moved records point at another id\'s raw object)', async () => {
     s3Mock.on(DeleteObjectCommand).resolves({});
-    await store().deleteRaw(message.id);
-    expect(s3Mock.commandCalls(DeleteObjectCommand)[0].args[0].input).toMatchObject({ Bucket: 'bucket-test', Key: `raw/${message.id}.eml` });
+    await store().deleteRawKey('raw/other-id.eml');
+    expect(s3Mock.commandCalls(DeleteObjectCommand)[0].args[0].input).toMatchObject({ Bucket: 'bucket-test', Key: 'raw/other-id.eml' });
   });
 });

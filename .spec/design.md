@@ -147,7 +147,7 @@ MCP ツール一覧（名前は snake_case。入力は zod で定義し SDK が 
 
 | ツール | 入力 | 出力 | 対応要件 |
 |--------|------|------|----------|
-| `list_folders` | なし | `[{name, total, unread, specialUse}]` | REQ-012 |
+| `list_folders` | なし | `[{name, total, unread, specialUse, lastSyncAt}]`（件数は同期時点のスナップショット。`lastSyncAt` でその時点を示す） | REQ-012 |
 | `search_messages` | `folder?, from?, to?, subject?, since?, before?, unreadOnly?, flaggedOnly?, limit?(≤100, 既定 20), cursor?` | `{messages:[{id, folder, subject, from, to, receivedAt, seen, flagged, hasAttachments}], nextCursor?}` | REQ-010 |
 | `get_message` | `id` | `{id, headers{from,to,cc,date,subject,messageId,inReplyTo}, text, attachments:[{filename, contentType, size}]}` | REQ-011 |
 | `send_message` | `to[], cc?[], bcc?[], subject, body` | `{messageId}` | REQ-020 |
@@ -155,8 +155,8 @@ MCP ツール一覧（名前は snake_case。入力は zod で定義し SDK が 
 | `forward_message` | `id, to[], comment?` | `{messageId}` | REQ-022 |
 | `set_read` | `id, read: boolean` | `{id, seen}` | REQ-030 |
 | `set_flagged` | `id, flagged: boolean` | `{id, flagged}` | REQ-033 |
-| `move_message` | `id, folder` | `{id, folder}` | REQ-031 |
-| `trash_message` | `id` | `{id, folder}` | REQ-032 |
+| `move_message` | `id, folder` | `{id, folder}`（移動後は id が変わる。ADR-0006） | REQ-031 |
+| `trash_message` | `id` | `{id, folder}`（移動後は id が変わる） | REQ-032 |
 | `schedule_message` | `sendAt (ISO 8601, TZ 付き), to[], cc?[], bcc?[], subject, body` | `{scheduleId, sendAt}` | REQ-040 |
 | `list_scheduled_messages` | `status?` | `[{scheduleId, status, sendAt, to, subject, error?}]` | REQ-041 |
 | `cancel_scheduled_message` | `scheduleId` | `{scheduleId, status:"cancelled"}` | REQ-041 |
@@ -190,7 +190,7 @@ MCP ツール一覧（名前は snake_case。入力は zod で定義し SDK が 
 ### 3.4 core/imap.ts（ImapSession）
 
 - 接続ごとに `CAPABILITY` を確認し、移動戦略を決める: `MOVE` があれば `UID MOVE`、無ければ `UID COPY` + `\Deleted` フラグ付与（さくらは後者。**EXPUNGE は呼ばない**ため、移動元には `\Deleted` 付きのコピーが残り、メールクライアント側の expunge で消える。同期の照合フェーズは `\Deleted` 付きメッセージを「消失」として扱い DynamoDB から除外する。`imapflow` の `messageDelete` / `mailboxClose` の expunge 動作を使わず、`mailboxClose` は `mailboxOpen` で `readOnly` でない場合も `noExpunge` 相当の手順で閉じる）。静的テストで `expunge` 文字列がコードに現れないことを検証する（REQ-032）。
-- 整理操作は「IMAP 成功 → DynamoDB 更新」の順（REQ-030〜033）。移動後の新 UID は `UID MOVE` / `UID COPY` の `COPYUID` 応答から取り、DynamoDB の `folder` / `uid` を更新する。
+- 整理操作は「IMAP 成功 → DynamoDB 更新」の順（REQ-030〜033）。移動後の新 UID は `UID MOVE` / `UID COPY` の `COPYUID` 応答から取り、新 id（Message-ID + 移動先フォルダ）のレコードを作成して旧レコードを削除する（ADR-0006）。
 
 ### 3.5 core/compose.ts
 
@@ -208,8 +208,7 @@ DynamoDB テーブル `MailTable-<stage>`（PK: `PK` string, SK: `SK` string, �
 | SyncState | `SYNC#<folder>` | `STATE` | uidValidity, lastUid, initialDone, updatedAt | - | - |
 | Scheduled | `SCHED#<scheduleId>` | `META` | status(pending/sending/sent/failed/cancelled), sendAt, to[], cc[], bcc[], subject, body, messageId, scheduleName, attempts, error, createdAt, ttl(終端状態 +90d) | - | `SCHED` / `<sendAt>#<scheduleId>` |
 
-- `id` = `sha256(Message-ID ヘッダ)` の先頭 32 桁 hex。ヘッダが無い場合は `sha256("<folder>:<uidValidity>:<uid>")`。Message-ID ベースにすることで、フォルダ移動しても同じアイテムが更新される。
-  - 既知の制約: 同一 Message-ID が複数フォルダにある場合（自分宛に送ったメールの INBOX コピーと Sent コピーなど）は、最後に同期したフォルダのレコードだけが残る（L-0021）。
+- `id` = `sha256("<Message-ID>:<folder>")` の先頭 32 桁 hex。ヘッダが無い場合は `sha256("<folder>:<uidValidity>:<uid>")`。1 フォルダ 1 レコードで、同一 Message-ID が複数フォルダにあっても（自分宛に送ったメールの INBOX コピーと Sent コピー等）それぞれ検索できる（[ADR-0006](adr/0006-message-id-includes-folder.md)）。ツールによる移動は「新 id のレコード作成（`s3Key` は元のまま）→ 旧レコード削除」で、応答の `id` は新しい値になる。同期の照合でレコードを削除するときは生メッセージをそのレコードの `s3Key` で削除する。
 - S3 バケット `mail-mcp-raw-<stage>-<account>`: キー `raw/<id>.eml`、SSE-S3、パブリックアクセス遮断、ライフサイクル 365 日で削除、バージョニング無し。
 - RemovalPolicy: テーブル・バケットとも prod は RETAIN、dev は DESTROY（dev のバケットは `autoDeleteObjects`）。
 
@@ -386,3 +385,4 @@ CI/CD テンプレートへの追加: 3 ワークフローとも `npm ci` の後
 - [ADR-0003](adr/0003-scheduled-send-eventbridge-scheduler.md): 予約送信を EventBridge Scheduler の一回限りスケジュールと DynamoDB 条件付き更新で実現する
 - [ADR-0004](adr/0004-oauth-cognito-preregistered-client.md): MCP クライアント認証を OAuth 2.1 + Amazon Cognito（事前登録アプリクライアント、AgentCore JWT 認可）にする
 - [ADR-0005](adr/0005-arm64-image-deploy-time-build.md): MCP コンテナの ARM64 イメージを `@cdklabs/deploy-time-build`（CodeBuild）でデプロイ時にビルドする
+- [ADR-0006](adr/0006-message-id-includes-folder.md): メッセージ id をフォルダ込みで導出し、移動は「旧レコード削除 + 新レコード作成」にする

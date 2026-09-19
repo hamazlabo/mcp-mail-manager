@@ -105,7 +105,23 @@ describe('reconcileFolder', () => {
 
     expect([...store.messages.keys()]).toEqual(['keep']);
     expect([...store.raws.keys()]).toEqual(['keep']);
-    expect(store.calls).toEqual(expect.arrayContaining(['deleteMessage(gone)', 'deleteRaw(gone)', 'deleteMessage(del)', 'deleteRaw(del)']));
+    expect(store.calls).toEqual(
+      expect.arrayContaining(['deleteMessage(gone)', 'deleteRawKey(raw/gone.eml)', 'deleteMessage(del)', 'deleteRawKey(raw/del.eml)']),
+    );
+  });
+
+  it('移動後のレコード（s3Key が元の id のキー）を消すときは、そのレコードの s3Key で S3 を消す', async () => {
+    const { imap, store } = setup();
+    // ツールで INBOX → INBOX.Archive に移した後に、メールクライアントが Archive から消した状況
+    imap.addFolder('INBOX.Archive');
+    store.folders.set('INBOX.Archive', { name: 'INBOX.Archive', delimiter: '.', total: 1, unread: 0, lastSyncAt: '' });
+    store.messages.set('moved', { ...item('moved', 'INBOX.Archive', 5), s3Key: 'raw/original.eml' });
+    store.raws.set('original', Buffer.from('raw'));
+
+    await reconcileFolder({ imap, store: store.asStore(), folder: 'INBOX.Archive', now });
+
+    expect(store.calls).toEqual(expect.arrayContaining(['deleteMessage(moved)', 'deleteRawKey(raw/original.eml)']));
+    expect(store.raws.has('original')).toBe(false);
   });
 
   it('Folder の total（\\Deleted を除く件数）と unread を更新し、specialUse と delimiter を保持する', async () => {

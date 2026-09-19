@@ -37,16 +37,17 @@ function message(n: number, extra: Record<string, unknown> = {}): MessageItem {
 const SUMMARY_KEYS = ['id', 'folder', 'subject', 'from', 'to', 'receivedAt', 'seen', 'flagged', 'hasAttachments'].sort();
 
 describe('list_folders (REQ-012)', () => {
-  it('returns name / total / unread / specialUse of synced folders', async () => {
+  it('returns name / total / unread / specialUse / lastSyncAt of synced folders', async () => {
+    // 件数は同期時点のスナップショット。lastSyncAt でその時点を示す（REQ-012）
     const folders: FolderItem[] = [
       { name: 'INBOX', delimiter: '.', total: 10, unread: 3, lastSyncAt: '2026-09-19T00:00:00Z' },
-      { name: 'INBOX.Sent', delimiter: '.', specialUse: 'sent', total: 4, unread: 0, lastSyncAt: '2026-09-19T00:00:00Z' },
+      { name: 'INBOX.Sent', delimiter: '.', specialUse: 'sent', total: 4, unread: 0, lastSyncAt: '2026-09-19T00:15:00Z' },
     ];
     const ctx = makeCtx({ store: { listFolders: async () => folders } });
     const client = await connect((s) => registerListFolders(s, ctx));
     expect(json(await call(client, 'list_folders'))).toEqual([
-      { name: 'INBOX', total: 10, unread: 3, specialUse: undefined },
-      { name: 'INBOX.Sent', total: 4, unread: 0, specialUse: 'sent' },
+      { name: 'INBOX', total: 10, unread: 3, specialUse: undefined, lastSyncAt: '2026-09-19T00:00:00Z' },
+      { name: 'INBOX.Sent', total: 4, unread: 0, specialUse: 'sent', lastSyncAt: '2026-09-19T00:15:00Z' },
     ]);
   });
 });

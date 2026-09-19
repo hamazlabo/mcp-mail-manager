@@ -99,10 +99,6 @@ export class MailStore {
   }
 
   /** 移動後のフォルダ / UID を反映する（GSI1 キーも更新）。 */
-  async updateLocation(id: string, location: { folder: string; uid: number; uidValidity: number }): Promise<void> {
-    await this.update(keys.message(id), { ...location, ...keys.gsi1Message(location.folder, location.uid) });
-  }
-
   /** search.ts が組み立てた GSI2 Query をそのまま実行する。 */
   async queryMessages(
     query: QueryCommandInput,
@@ -199,8 +195,9 @@ export class MailStore {
     }
   }
 
-  async deleteRaw(id: string): Promise<void> {
-    await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucketName, Key: rawKey(id) }));
+  /** レコードの s3Key で削除する。ツールで移動したレコードは元 id のキーを参照し続けるため、id からは組み立てない */
+  async deleteRawKey(key: string): Promise<void> {
+    await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucketName, Key: key }));
   }
 
   // ---- 内部ヘルパ ----

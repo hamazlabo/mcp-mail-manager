@@ -29,9 +29,10 @@ export class FakeStore {
     this.calls.push(`putRaw(${id})`);
     this.raws.set(id, raw);
   }
-  async deleteRaw(id: string) {
-    this.calls.push(`deleteRaw(${id})`);
-    this.raws.delete(id);
+  /** 実装は S3 キーで消す。フェイクの raws は id をキーにしているので `raw/<id>.eml` から id を戻す */
+  async deleteRawKey(key: string) {
+    this.calls.push(`deleteRawKey(${key})`);
+    this.raws.delete(key.replace(/^raw\//, '').replace(/\.eml$/, ''));
   }
   async putMessage(item: MessageItem) {
     this.calls.push(`putMessage(${item.id})`);

@@ -8,12 +8,15 @@ export function registerListFolders(server: McpServer, ctx: ToolContext): void {
     'list_folders',
     {
       title: 'List folders',
-      description: '同期済みのメールフォルダ一覧（名前・メッセージ数・未読数・sent/trash の種別）を返す',
+      description:
+        '同期済みのメールフォルダ一覧（名前・メッセージ数・未読数・sent/trash の種別）を返す。件数は lastSyncAt 時点のスナップショット（同期は 15 分ごと）で、整理操作の直後には反映されていない',
     },
     async () => {
       try {
         const folders = await ctx.store.listFolders();
-        return ok(folders.map((f) => ({ name: f.name, total: f.total, unread: f.unread, specialUse: f.specialUse })));
+        return ok(
+          folders.map((f) => ({ name: f.name, total: f.total, unread: f.unread, specialUse: f.specialUse, lastSyncAt: f.lastSyncAt })),
+        );
       } catch (err) {
         return fail(describeError(err));
       }

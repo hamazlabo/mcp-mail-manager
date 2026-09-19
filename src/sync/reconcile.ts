@@ -35,7 +35,8 @@ export async function reconcileFolder(input: {
     const item = await store.getMessage(k.id);
     if (!item || item.folder !== folder || item.uid !== k.uid) continue;
     await store.deleteMessage(k.id);
-    await store.deleteRaw(k.id);
+    // ツールで移動したレコードは元 id の生メッセージを参照しているので、id ではなく s3Key で消す
+    await store.deleteRawKey(item.s3Key);
     removed++;
   }
 

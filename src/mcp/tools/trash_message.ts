@@ -9,7 +9,7 @@ export function registerTrashMessage(server: McpServer, ctx: ToolContext): void 
     'trash_message',
     {
       title: 'Trash message',
-      description: 'メッセージをゴミ箱フォルダへ移動する（完全削除はしない）',
+      description: 'メッセージをゴミ箱フォルダへ移動する（完全削除はしない）。移動後は id が変わるので、以後は戻り値の id を使う',
       inputSchema: { id: z.string() },
     },
     ({ id }) => moveTo(ctx, id, async (imap) => (await imap.specialFolders()).trash),
