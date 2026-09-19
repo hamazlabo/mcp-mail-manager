@@ -169,16 +169,30 @@ export class MailMcpStack extends Stack {
     });
     branding.node.addDependency(this.userPoolDomain);
 
-    // 正常性テスト用ユーザ: パスワードを生成して Secrets Manager に置き、AdminCreateUser → AdminSetUserPassword
-    this.smokeUserSecret = new secretsmanager.Secret(this, 'SmokeUserSecret', {
-      secretName: `mail-mcp/${stage}/smoke-user`,
-      description: 'Cognito user for npm run test:smoke',
-      generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: SMOKE_USERNAME }),
-        generateStringKey: 'password',
-        excludeCharacters: '"\'\\/@ ',
-        passwordLength: 24,
-      },
+    // 正常性テスト用ユーザ: パスワードを生成して Secrets Manager に置き、AdminCreateUser → AdminSetUserPassword。
+    // 動的参照 {{resolve:secretsmanager:...}} はカスタムリソースでは解決されない（CloudFormation の制約）ため、
+    // GetSecretValue を別のカスタムリソースで呼び、その応答（GetAtt SecretString）を渡す。
+    // CFN の組込関数では JSON のキーを取り出せないので、パスワードは生の文字列で保存する
+    this.smokeUserSecret = new secretsmanager.Secret(this, 'SmokeUserPasswordSecret', {
+      secretName: `mail-mcp/${stage}/smoke-user-password`,
+      description: `Password of the Cognito user "${SMOKE_USERNAME}" for npm run test:smoke`,
+      generateSecretString: { excludeCharacters: '"\'\\/@ ', passwordLength: 24 },
+    });
+    const readSmokePassword: cr.AwsSdkCall = {
+      service: '@aws-sdk/client-secrets-manager',
+      action: 'GetSecretValueCommand',
+      parameters: { SecretId: this.smokeUserSecret.secretArn },
+      physicalResourceId: cr.PhysicalResourceId.of(`mail-mcp-${stage}-smoke-user-password-read`),
+      // 値をハンドラのログに出さない
+      logging: cr.Logging.withDataHidden(),
+    };
+    const smokePasswordRead = new cr.AwsCustomResource(this, 'SmokeUserPasswordRead', {
+      onCreate: readSmokePassword,
+      onUpdate: readSmokePassword,
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({ actions: ['secretsmanager:GetSecretValue'], resources: [this.smokeUserSecret.secretArn] }),
+      ]),
+      installLatestAwsSdk: false,
     });
     const cognitoAdmin = cr.AwsCustomResourcePolicy.fromStatements([
       new iam.PolicyStatement({
@@ -213,8 +227,7 @@ export class MailMcpStack extends Stack {
       parameters: {
         UserPoolId: this.userPool.userPoolId,
         Username: SMOKE_USERNAME,
-        // 動的参照 {{resolve:secretsmanager:...}} としてテンプレートに入り、デプロイ時に解決される
-        Password: this.smokeUserSecret.secretValueFromJson('password').unsafeUnwrap(),
+        Password: smokePasswordRead.getResponseField('SecretString'),
         Permanent: true,
       },
       physicalResourceId: cr.PhysicalResourceId.of(`mail-mcp-${stage}-smoke-user-password`),

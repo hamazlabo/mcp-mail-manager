@@ -284,7 +284,7 @@ Secrets Manager `mail-mcp/<stage>/mail`（人間が値を入れる。CDK はプ�
 ## 7. セキュリティ
 
 - 認証・認可: Cognito User Pool（セルフサインアップ無効、パスワードポリシー強、MFA は任意設定）。アクセストークン検証は AgentCore Runtime の JWT 認可（discovery URL = User Pool の `openid-configuration`、allowedClients = アプリクライアント ID）。façade（CloudFront）は認証を持たない。AgentCore の呼出 URL 自体が JWT 必須なので façade を迂回されても無認証では呼べない。
-- シークレット管理: IMAP/SMTP 認証情報は Secrets Manager `mail-mcp/<stage>/mail`。正常性テスト用 Cognito ユーザのパスワードは Secrets Manager `mail-mcp/<stage>/smoke-user`（CDK が生成、AwsCustomResource で `AdminCreateUser` + `AdminSetUserPassword`）。
+- シークレット管理: IMAP/SMTP 認証情報は Secrets Manager `mail-mcp/<stage>/mail`。正常性テスト用 Cognito ユーザ `smoke` のパスワードは Secrets Manager `mail-mcp/<stage>/smoke-user-password`（CDK が生の文字列として生成。AwsCustomResource で `GetSecretValue` → `AdminCreateUser` + `AdminSetUserPassword`。動的参照 `{{resolve:secretsmanager}}` はカスタムリソースでは解決されないため使わない）。
 - 最小権限（Lambda ごとのロール）:
   - mcp-server（AgentCore 実行ロール、`bedrock-agentcore.amazonaws.com` が Assume）: ECR pull、CloudWatch Logs、DynamoDB R/W、S3 GetObject、Secrets GetSecretValue、Scheduler Create/Delete（スケジュールグループ限定）、`iam:PassRole`（scheduled-send 起動ロールのみ）。
   - façade（CloudFront Functions）: AWS リソースへの権限を持たない。
@@ -325,7 +325,7 @@ NFR-001（5 USD 以内、アイドル時 1 USD 未満）を満たす。dev / pro
   - 静的テスト: `src/` に `expunge` を含む呼出が無いこと（REQ-032）。
   - CDK assertions: スタック名の stage 切替、S3 BlockPublicAccess、TTL・ライフサイクル、各 Lambda のロール分離、アラームの存在。
 - 統合: Docker で GreenMail（IMAP/SMTP フェイク）を起動し、`ImapSession` / `SmtpSender` の実装を検証する（`npm run test:integration`、CI 必須ではない。ローカル任意）。コンテナはローカルでは `npm run build && docker build -f docker/Dockerfile .`（ホストのアーキテクチャ）の後 `docker run -p 8000:8000` で起動し、MCP Inspector で疎通確認できる（ARM64 ビルドはデプロイ時に CodeBuild が行う: ADR-0005）。
-- 正常性テスト (`npm run test:smoke`): デプロイ後に dev / prod へ実行する。`CDK_OUTPUTS_FILE` から URL / Cognito 情報を読み、Secrets Manager の smoke-user で `InitiateAuth (USER_PASSWORD_AUTH)` によりアクセストークンを得る。対象ユースケース:
+- 正常性テスト (`npm run test:smoke`): デプロイ後に dev / prod へ実行する。`CDK_OUTPUTS_FILE` から URL / Cognito 情報を読み、Secrets Manager の smoke-user-password で `InitiateAuth (USER_PASSWORD_AUTH)` によりアクセストークンを得る。対象ユースケース:
   - REQ-051: トークン無しで façade の `POST /mcp` → 401 + façade の PRM を指す WWW-Authenticate、well-known 2 本が 200 で PKCE が広告されている。
   - REQ-050: `initialize` と `tools/list` が成功し 13 ツールが含まれる。
   - REQ-012 / REQ-010 / REQ-011: `list_folders` → `search_messages`（limit 5）→ 先頭の `get_message`（同期済みメールが 0 件なら検索の空応答までで合格）。

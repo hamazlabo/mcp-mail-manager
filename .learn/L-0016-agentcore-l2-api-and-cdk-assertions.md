@@ -14,7 +14,7 @@ promoted_in:
 
 - `agentcore.Runtime({ runtimeName, agentRuntimeArtifact: AgentRuntimeArtifact.fromEcrRepository(repo, tag), protocolConfiguration: ProtocolType.MCP, networkConfiguration: RuntimeNetworkConfiguration.usingPublicNetwork(), authorizerConfiguration: RuntimeAuthorizerConfiguration.usingCognito(userPool, [client]), environmentVariables, lifecycleConfiguration: { idleRuntimeSessionTimeout } })`。設計時に想定した `usingJWT(url, clients)` ではなく `usingCognito` が discovery URL を組み立てる。実行ロールは `runtime.role` で取れ、`fromEcrRepository` が ECR pull を付与する。
 - `AwsCustomResource` の `logging: Logging.withDataHidden()` は Props ではなく `AwsSdkCall` 側。Secrets の値は `secretValueFromJson('x').unsafeUnwrap()` で `{{resolve:secretsmanager:...}}` の動的参照になりテンプレートに平文は入らない。
-- Cognito の `signInAliases: { email: true }` だけだと Username が email 形式に制限され、固定ユーザ名（`smoke`）が作れない。新しい Managed Login（`ManagedLoginVersion.NEWER_MANAGED_LOGIN`）は `CfnManagedLoginBranding` が無いとログイン画面が出ない。
+- Cognito の `signInAliases: { email: true }` だけだと Username が email 形式に制限され、固定ユーザ名（`smoke`）が作れない。逆に `{ username: true, email: true }`（email をエイリアス）にすると `AdminCreateUser` の Username にメールアドレス形式は使えない（`Username cannot be of email format`）。開発者ユーザは `developer` + email 属性で作る。新しい Managed Login（`ManagedLoginVersion.NEWER_MANAGED_LOGIN`）は `CfnManagedLoginBranding` が無いとログイン画面が出ない。
 - CDK assertions の `Match.arrayWith` は要素順も見る。スタックが育つと `Template.fromStack` に 5 秒超かかるので `beforeAll(..., 60_000)`。
 
 ## 知見

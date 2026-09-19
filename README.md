@@ -20,7 +20,7 @@ AI エージェント（Claude Code / Claude Desktop など MCP クライアン�
 | 予約送信 | Lambda `mail-mcp-<stage>-scheduled-send`（Scheduler から起動、`src/scheduled-send`） |
 | データ | DynamoDB `MailTable-<stage>`、S3 `mail-mcp-raw-<stage>-<account>`（保持 1 年） |
 | 認証 | Cognito User Pool + Managed Login、AgentCore の JWT 認可 |
-| 設定 | Secrets Manager `mail-mcp/<stage>/mail`（IMAP / SMTP）、`mail-mcp/<stage>/smoke-user`（正常性テスト） |
+| 設定 | Secrets Manager `mail-mcp/<stage>/mail`（IMAP / SMTP）、`mail-mcp/<stage>/smoke-user-password`（正常性テスト用 Cognito ユーザ `smoke` のパスワード） |
 
 MCP ツール: `list_folders` `search_messages` `get_message` `send_message` `reply_message` `forward_message`
 `set_read` `set_flagged` `move_message` `trash_message` `schedule_message` `list_scheduled_messages` `cancel_scheduled_message`
@@ -95,10 +95,12 @@ aws secretsmanager put-secret-value --profile <profile> --secret-id mail-mcp/<st
 
 ```sh
 aws cognito-idp admin-create-user --profile <profile> --user-pool-id <UserPoolId> \
-  --username <あなたのメールアドレス> \
-  --user-attributes Name=email,Value=<あなたのメールアドレス> Name=email_verified,Value=true
+  --username developer \
+  --user-attributes Name=email,Value=<あなたのメールアドレス> Name=email_verified,Value=true \
+  --desired-delivery-mediums EMAIL
 ```
 
+User Pool は email をエイリアスにしているため、`--username` にメールアドレス形式は使えない（ログイン時はメールアドレスでもユーザ名でも可）。
 Cognito から仮パスワードの招待メールが届く。初回ログイン時に本パスワードを設定する。セルフサインアップは無効。
 
 ### 3. Claude に登録する

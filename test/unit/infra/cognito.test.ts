@@ -42,18 +42,32 @@ describe('Cognito (User Pool / domain / app client / smoke user)', () => {
   });
 
   it('creates the smoke user secret and the AdminCreateUser / AdminSetUserPassword custom resources', () => {
+    // パスワードは JSON ではなく生の文字列で保存する（カスタムリソースでは JSON のキーを取り出せないため）
     template.hasResourceProperties('AWS::SecretsManager::Secret', {
-      Name: 'mail-mcp/dev/smoke-user',
-      GenerateSecretString: Match.objectLike({ GenerateStringKey: 'password' }),
+      Name: 'mail-mcp/dev/smoke-user-password',
+      GenerateSecretString: Match.objectLike({ PasswordLength: 24 }),
+    });
+    template.hasResourceProperties('AWS::SecretsManager::Secret', {
+      Name: 'mail-mcp/dev/smoke-user-password',
+      GenerateSecretString: Match.not(Match.objectLike({ GenerateStringKey: Match.anyValue() })),
     });
     // Create は SDK 呼出の JSON 文字列（Ref を含むので Fn::Join）。文字列部分だけ連結して検査する
-    const creates = Object.values(template.findResources('Custom::AWS')).map((r) => {
+    const resources = Object.values(template.findResources('Custom::AWS'));
+    const joinParts = (r: any): unknown[] => {
       const c = r.Properties.Create;
-      const parts: unknown[] = typeof c === 'string' ? [c] : c['Fn::Join'][1];
-      return parts.filter((p): p is string => typeof p === 'string').join('');
-    });
+      return typeof c === 'string' ? [c] : c['Fn::Join'][1];
+    };
+    const creates = resources.map((r) => joinParts(r).filter((p): p is string => typeof p === 'string').join(''));
     expect(creates.some((c) => c.includes('"action":"AdminCreateUserCommand"') && c.includes('"MessageAction":"SUPPRESS"'))).toBe(true);
-    expect(creates.some((c) => c.includes('"action":"AdminSetUserPasswordCommand"') && c.includes('"Permanent":true'))).toBe(true);
+    // 動的参照 {{resolve:secretsmanager:...}} はカスタムリソースでは解決されない（CloudFormation の制約）。
+    // GetSecretValue のカスタムリソースの応答（GetAtt SecretString）を AdminSetUserPassword に渡す
+    expect(creates.some((c) => c.includes('"action":"GetSecretValueCommand"'))).toBe(true);
+    const setPassword = resources.find((r) => joinParts(r).some((p) => typeof p === 'string' && p.includes('"action":"AdminSetUserPasswordCommand"')));
+    expect(setPassword).toBeDefined();
+    const setPasswordText = joinParts(setPassword).filter((p): p is string => typeof p === 'string').join('');
+    expect(setPasswordText).toContain('"Permanent":true');
+    expect(setPasswordText).not.toContain('{{resolve:');
+    expect(JSON.stringify(setPassword!.Properties.Create)).toMatch(/"Fn::GetAtt":\["SmokeUserPasswordRead[A-Za-z0-9]*","SecretString"\]/);
     // Cognito 権限は User Pool の ARN に限定
     template.hasResourceProperties('AWS::IAM::Policy', {
       PolicyDocument: {
