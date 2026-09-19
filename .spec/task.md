@@ -312,5 +312,5 @@
 | T-018 | 2026-09-19 | ハンドラテスト 3 本 + CDK assertions 3 本。構成は `infra/lib/sync-job.ts`（Scheduler L2 `Schedule` + `LambdaInvoke`、起動ロールは scheduled-send と共用）。dev への同期反映は deploy-dev 後に確認 |
 | T-025 | 2026-09-19 | テスト 5 本。`signInAliases` は username + email（smoke ユーザ名 `smoke` のため）。新 Managed Login には `CfnManagedLoginBranding` が必須。`AdminSetUserPassword` は動的参照でパスワードを渡し `Logging.withDataHidden()` |
 | T-026 | 2026-09-19 | テスト 5 本。`RuntimeAuthorizerConfiguration.usingCognito(userPool, [client])`、`AgentRuntimeArtifact.fromEcrRepository(image.repository, image.imageTag)`。`ContainerImageBuild` は `ignoreMode: IgnoreMode.DOCKER` 必須（GLOB だと `.env` 等が入る）。Scheduler グループと起動ロールもここで作成。手動確認は deploy-dev 後 |
-| T-027 | 2026-09-19 | 関数テスト 7 本 + CDK 3 本。façade 自身の URL は Host ヘッダから実行時に組み立てる。dev の well-known 確認は deploy-dev 後 |
+| T-027 | 2026-09-19 | 関数テスト 7 本 + CDK 3 本。façade 自身の URL は Host ヘッダから実行時に組み立てる。dev 実機で CloudFront がオリジンの 401 に viewer-response を呼ばない（`x-cache: Error from cloudfront`）と判明し、viewer-response を廃止して viewer-request がトークン無し / 期限切れを判定して 401 を返す方式に変更（テスト 9 本 + CDK 3 本）。well-known 2 本は dev で 200 を確認 |
 | T-031 | 2026-09-19 | テスト 5 本。構成は `infra/lib/scheduled-send.ts`（タイムアウト 5 分、DynamoDB は `LeadingKeys = SCHED#*` に限定、S3 なし）。SNS 宛先は context `alarmEmail`（cdk.json）。実送信の手動確認は deploy-dev 後 |

@@ -1,5 +1,8 @@
 // CloudFront Function (viewer-request, cloudfront-js-2.0)。
 // OAuth の well-known 2 本を静的 JSON で返し、POST /mcp を AgentCore の呼出 URL へ書き換える（design.md 3.1b）。
+// 認証の事前判定もここで行う: CloudFront はオリジンのエラー応答（401 等）で viewer-response 関数を呼ばないため、
+// トークン無し / 期限切れ / 不正形式の要求には façade 自身の Protected Resource Metadata を指す 401 を返す（REQ-051）。
+// 署名・client_id の検証は AgentCore Runtime が行う。
 // __RUNTIME_ARN__ / __COGNITO_ISSUER__ / __COGNITO_DOMAIN__ / __JWKS_URI__ は CDK が synth 時に置換する。
 var RUNTIME_ARN = '__RUNTIME_ARN__';
 var COGNITO_ISSUER = '__COGNITO_ISSUER__';
@@ -16,6 +19,29 @@ function json(status, description, body) {
     },
     body: JSON.stringify(body)
   };
+}
+
+function unauthorized(self, error) {
+  var challenge = 'Bearer ' + (error ? 'error="' + error + '", ' : '') +
+    'resource_metadata="' + self + '/.well-known/oauth-protected-resource"';
+  var res = json(401, 'Unauthorized', { error: error || 'unauthorized' });
+  res.headers['www-authenticate'] = { value: challenge };
+  return res;
+}
+
+// Bearer トークンの payload（JWT 第 2 要素）を復号し exp が未来なら true。署名は検証しない
+function bearerNotExpired(authorization) {
+  if (!authorization || authorization.slice(0, 7).toLowerCase() !== 'bearer ') return false;
+  var parts = authorization.slice(7).trim().split('.');
+  if (parts.length !== 3) return false;
+  try {
+    var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    var payload = JSON.parse(atob(b64));
+    return typeof payload.exp === 'number' && payload.exp > Date.now() / 1000;
+  } catch (e) {
+    return false;
+  }
 }
 
 function handler(event) {
@@ -48,6 +74,9 @@ function handler(event) {
     });
   }
   if (method === 'POST' && uri === '/mcp') {
+    var auth = request.headers.authorization;
+    if (!auth) return unauthorized(self);
+    if (!bearerNotExpired(auth.value)) return unauthorized(self, 'invalid_token');
     request.uri = '/runtimes/' + encodeURIComponent(RUNTIME_ARN) + '/invocations';
     request.querystring.qualifier = { value: 'DEFAULT' };
     return request;

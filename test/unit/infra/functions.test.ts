@@ -22,13 +22,22 @@ function load(name: string): (event: Record<string, unknown>) => CfRequest | CfR
   // CloudFront Functions の `function handler(event)` をそのまま評価して取り出す
   return new Function(`${code}\nreturn handler;`)();
 }
-const request = (method: string, uri: string): CfRequest => ({
+/** 署名検証はしないので payload だけ本物っぽい JWT を作る（base64url） */
+const b64url = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+const jwt = (exp: number) => `${b64url({ alg: 'RS256', kid: 'k' })}.${b64url({ sub: 'u', client_id: 'c', exp })}.sig`;
+const NOW = Math.floor(Date.now() / 1000);
+const VALID_TOKEN = jwt(NOW + 3600);
+const request = (method: string, uri: string, authorization?: string | null): CfRequest => ({
   method,
   uri,
   querystring: {},
-  headers: { host: { value: HOST }, authorization: { value: 'Bearer xyz' } },
+  headers: {
+    host: { value: HOST },
+    ...(authorization === null ? {} : { authorization: { value: authorization ?? `Bearer ${VALID_TOKEN}` } }),
+  },
   cookies: {},
 });
+const PRM_CHALLENGE = `resource_metadata="https://${HOST}/.well-known/oauth-protected-resource"`;
 const body = (r: CfRequest | CfResponse) => JSON.parse((r as CfResponse).body ?? '');
 
 describe('viewer-request function', () => {
@@ -65,7 +74,7 @@ describe('viewer-request function', () => {
     const req = handler({ request: request('POST', '/mcp') }) as CfRequest;
     expect(req.uri).toBe(`/runtimes/${encodeURIComponent(SAMPLE.__RUNTIME_ARN__)}/invocations`);
     expect(req.querystring.qualifier).toEqual({ value: 'DEFAULT' });
-    expect(req.headers.authorization.value).toBe('Bearer xyz');
+    expect(req.headers.authorization.value).toBe(`Bearer ${VALID_TOKEN}`);
     expect((req as unknown as CfResponse).statusCode).toBeUndefined();
   });
 
@@ -76,29 +85,32 @@ describe('viewer-request function', () => {
   });
 });
 
-describe('viewer-response function', () => {
-  const handler = load('viewer-response.js');
+describe('viewer-request function: authentication pre-check (CloudFront skips viewer-response on origin errors)', () => {
+  const handler = load('viewer-request.js');
 
-  it('points 401 responses at the façade protected resource metadata', () => {
-    const res = handler({
-      request: request('POST', '/mcp'),
-      response: { statusCode: 401, headers: { 'www-authenticate': { value: 'Bearer realm="agentcore"' } } },
-    }) as CfResponse;
+  it('answers 401 with the façade protected resource metadata when Authorization is missing', () => {
+    const res = handler({ request: request('POST', '/mcp', null) }) as CfResponse;
     expect(res.statusCode).toBe(401);
-    expect(res.headers['www-authenticate'].value).toBe(
-      `Bearer resource_metadata="https://${HOST}/.well-known/oauth-protected-resource"`,
-    );
+    expect(res.headers['www-authenticate'].value).toBe(`Bearer ${PRM_CHALLENGE}`);
+    expect(res.headers['content-type'].value).toBe('application/json');
   });
 
-  it('leaves other responses untouched', () => {
-    const original = { statusCode: 200, headers: { 'content-type': { value: 'application/json' } } };
-    const res = handler({ request: request('POST', '/mcp'), response: original }) as CfResponse;
-    expect(res).toEqual(original);
+  it('answers 401 (invalid_token) when the bearer token is expired or malformed, without forwarding', () => {
+    for (const auth of [`Bearer ${jwt(NOW - 60)}`, 'Bearer not-a-jwt', 'Basic abc']) {
+      const res = handler({ request: request('POST', '/mcp', auth) }) as CfResponse;
+      expect(res.statusCode, auth).toBe(401);
+      expect(res.headers['www-authenticate'].value).toContain('error="invalid_token"');
+      expect(res.headers['www-authenticate'].value).toContain(PRM_CHALLENGE);
+    }
+  });
+
+  it('forwards a bearer token that has not expired (signature is verified by AgentCore)', () => {
+    const req = handler({ request: request('POST', '/mcp') }) as CfRequest;
+    expect((req as unknown as CfResponse).statusCode).toBeUndefined();
+    expect(req.uri).toContain('/invocations');
   });
 });
 
-it('keeps both functions within the 10 KB CloudFront Functions limit', () => {
-  for (const name of ['viewer-request.js', 'viewer-response.js']) {
-    expect(statSync(resolve('infra/functions', name)).size).toBeLessThan(10 * 1024);
-  }
+it('keeps the function within the 10 KB CloudFront Functions limit', () => {
+  expect(statSync(resolve('infra/functions', 'viewer-request.js')).size).toBeLessThan(10 * 1024);
 });

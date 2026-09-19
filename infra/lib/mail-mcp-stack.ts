@@ -340,15 +340,12 @@ export class MailMcpStack extends Stack {
       for (const [key, value] of Object.entries(placeholders)) code = code.split(key).join(value);
       return cloudfront.FunctionCode.fromInline(code);
     };
+    // viewer-response 関数は使わない: CloudFront はオリジンのエラー応答（AgentCore の 401）で viewer-response を呼ばないため、
+    // 401 の WWW-Authenticate 上書きは成立しない。代わりに viewer-request がトークン無し / 期限切れを判定して 401 を返す
     const viewerRequest = new cloudfront.Function(this, 'ViewerRequest', {
       code: functionCode('viewer-request.js'),
       runtime: cloudfront.FunctionRuntime.JS_2_0,
-      comment: 'OAuth well-known + /mcp rewrite to AgentCore',
-    });
-    const viewerResponse = new cloudfront.Function(this, 'ViewerResponse', {
-      code: functionCode('viewer-response.js'),
-      runtime: cloudfront.FunctionRuntime.JS_2_0,
-      comment: '401 WWW-Authenticate -> facade protected resource metadata',
+      comment: 'OAuth well-known + auth pre-check + /mcp rewrite to AgentCore',
     });
     this.distribution = new cloudfront.Distribution(this, 'Facade', {
       comment: `mail-mcp ${stage} facade`,
@@ -361,10 +358,7 @@ export class MailMcpStack extends Stack {
         cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
         originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        functionAssociations: [
-          { function: viewerRequest, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST },
-          { function: viewerResponse, eventType: cloudfront.FunctionEventType.VIEWER_RESPONSE },
-        ],
+        functionAssociations: [{ function: viewerRequest, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
       },
       priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,

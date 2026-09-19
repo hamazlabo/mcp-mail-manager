@@ -14,7 +14,7 @@ MCP の Streamable HTTP トランスポートを AWS 上でサーバレスに提
 ## 決定 (Decision)
 
 1. MCP サーバ本体（ツール実装）は AgentCore Runtime（プロトコル MCP、PUBLIC ネットワーク、JWT 認証 = Cognito の discovery URL + allowedClients）でホストする。イメージは CDK の `AgentRuntimeArtifact.fromAsset(dir, { platform: LINUX_ARM64 })` でビルド・配布する。
-2. 前段に **CloudFront の façade** を置く。役割は (a) `/.well-known/oauth-protected-resource` と `/.well-known/oauth-authorization-server` を CloudFront Function（viewer-request）が静的 JSON で返す（後者は Cognito のエンドポイントを転記し `code_challenge_methods_supported: ["S256"]` を明示する）、(b) `POST /mcp` を URI 書換で AgentCore の呼出 URL へ転送し、CloudFront Function（viewer-response）が 401 応答の `WWW-Authenticate` を façade の PRM を指すよう上書きする。Lambda・S3 は使わない。ユーザが Claude に登録する URL は façade の `/mcp` である。
+2. 前段に **CloudFront の façade** を置く。役割は (a) `/.well-known/oauth-protected-resource` と `/.well-known/oauth-authorization-server` を CloudFront Function（viewer-request）が静的 JSON で返す（後者は Cognito のエンドポイントを転記し `code_challenge_methods_supported: ["S256"]` を明示する）、(b) viewer-request がトークン無し / 期限切れの `POST /mcp` に façade の PRM を指す 401 を返し、それ以外を URI 書換で AgentCore の呼出 URL へ転送する（当初は viewer-response で AgentCore の 401 の `WWW-Authenticate` を上書きする案だったが、CloudFront はオリジンのエラー応答で viewer-response を呼ばないため変更）。Lambda・S3 は使わない。ユーザが Claude に登録する URL は façade の `/mcp` である。
 3. 同期ジョブと予約送信は引き続き Lambda（ADR-0002 / ADR-0003）。
 
 ## 検討した選択肢

@@ -12,7 +12,7 @@ flowchart LR
   end
   subgraph AWS["AWS ap-northeast-1 (stack: MailMcp-<stage>)"]
     CF[CloudFront: façade]
-    CFF[CloudFront Functions: well-known 応答 / URI 書換 / 401 ヘッダ]
+    CFF[CloudFront Function: well-known 応答 / 認証事前判定 / URI 書換]
     MCP[AgentCore Runtime: mcp-server コンテナ]
     SYNC[Lambda: sync]
     SEND[Lambda: scheduled-send]
@@ -49,7 +49,7 @@ flowchart LR
 ```
 
 - MCP サーバ本体は AgentCore Runtime 上の ARM64 コンテナ（Node.js 22）で動き、`0.0.0.0:8000/mcp` をステートレス Streamable HTTP で待ち受ける（[ADR-0001](adr/0001-mcp-hosting-agentcore-runtime.md)）。トークン検証は AgentCore の JWT 認可が行う。
-- façade（CloudFront + CloudFront Functions）は well-known 2 本を静的 JSON で返し、`POST /mcp` を AgentCore の呼出 URL へ転送し、401 応答の `WWW-Authenticate` を自身の PRM に向ける。Lambda も S3 も持たない。Claude に登録する URL は `https://<distribution>.cloudfront.net/mcp`。
+- façade（CloudFront + CloudFront Function）は well-known 2 本を静的 JSON で返し、トークン無し / 期限切れの `POST /mcp` には自身の PRM を指す 401 を返し、それ以外の `POST /mcp` を AgentCore の呼出 URL へ転送する。Lambda も S3 も持たない。Claude に登録する URL は `https://<distribution>.cloudfront.net/mcp`。
 - MCP コンテナと 2 つの Lambda（sync / scheduled-send）は同一リポジトリの共通ライブラリ `src/core` を共有する。Lambda は `NodejsFunction`（esbuild）、コンテナは Dockerfile（esbuild で単一ファイルにバンドル）で配布する。コンテナイメージ（ARM64）は `@cdklabs/deploy-time-build` の `ContainerImageBuild` がデプロイ時に CodeBuild（ARM ランナー）でビルドして ECR へ push する（[ADR-0005](adr/0005-arm64-image-deploy-time-build.md)）。ローカル・CI に QEMU / buildx は不要。
 - Lambda・AgentCore Runtime とも VPC に置かない（NAT Gateway を避ける。AgentCore は PUBLIC ネットワークモード）。IMAP / SMTP へはインターネット経由で TLS 接続する。
 - さくらのメールボックス（Courier-IMAP / Sendmail）の制約。2026-09-19 に実サーバへ接続して確認済み:
@@ -66,7 +66,7 @@ flowchart LR
 | MCP | `@modelcontextprotocol/sdk` 1.30（Node HTTP 版 Streamable HTTP、ステートレス、JSON 応答） | 公式。AgentCore の要件（8000 番 `/mcp`、ステートレス）をそのまま満たす | 自前 JSON-RPC 実装（保守コスト大） |
 | MCP ホスティング | Amazon Bedrock AgentCore Runtime（MCP プロトコル、JWT 認可、ARM64 コンテナ）（[ADR-0001](adr/0001-mcp-hosting-agentcore-runtime.md)） | ユーザ指定。MCP ネイティブ対応と JWT 検証内蔵。従量課金 | API Gateway + Lambda、AgentCore を直接公開、AgentCore Gateway |
 | コンテナビルド | `@cdklabs/deploy-time-build`（`ContainerImageBuild`, CodeBuild ARM）（[ADR-0005](adr/0005-arm64-image-deploy-time-build.md)） | ARM64 イメージを QEMU 無しでネイティブビルド。ビルド時のみ課金。`AgentRuntimeArtifact.fromEcrRepository` に直結 | `AgentRuntimeArtifact.fromAsset` + QEMU、GitHub Actions ARM ランナーで docker push |
-| façade | CloudFront + CloudFront Functions（viewer-request / viewer-response） | Lambda・S3 を持たずに OAuth ディスカバリを成立させる。CloudFront Functions のランタイムに廃止スケジュールがない。無料枠内 | HTTP API + Lambda、REST API MOCK + 独自ドメイン（ステージパスが付くため独自ドメイン必須）、AgentCore 直接公開 |
+| façade | CloudFront + CloudFront Function（viewer-request のみ） | Lambda・S3 を持たずに OAuth ディスカバリを成立させる。CloudFront Functions のランタイムに廃止スケジュールがない。無料枠内 | HTTP API + Lambda、REST API MOCK + 独自ドメイン（ステージパスが付くため独自ドメイン必須）、AgentCore 直接公開 |
 | 認証 | Cognito User Pool + Managed Login、AgentCore の JWT 認可（[ADR-0004](adr/0004-oauth-cognito-preregistered-client.md)） | AWS マネージド。OAuth 2.1 + PKCE。アプリ側に検証コード不要 | 静的トークン、自前 OAuth サーバ |
 | コンピュート（バッチ） | Lambda ×2（sync / scheduled-send） | 従量課金。Scheduler と直結 | Fargate 常駐 |
 | データストア | DynamoDB（単一テーブル、オンデマンド）+ S3（生メッセージ）（[ADR-0002](adr/0002-store-mail-in-s3-dynamodb.md)） | 憲法優先順位。個人利用量なら数十セント | IMAP パススルー、OpenSearch Serverless |
@@ -108,8 +108,7 @@ infra/
   bin/app.ts
   lib/mail-mcp-stack.ts
   functions/
-    viewer-request.js   # CloudFront Function: well-known 応答、/mcp の URI 書換
-    viewer-response.js  # CloudFront Function: 401 の WWW-Authenticate 上書き
+    viewer-request.js   # CloudFront Function: well-known 応答、認証事前判定（401）、/mcp の URI 書換
 test/
   unit/**          # vitest
   smoke/**         # npm run test:smoke
@@ -127,7 +126,7 @@ test/
 - **配布**: `npm run build`（esbuild）が `dist/mcp/main.js` を生成し、`docker/Dockerfile`（`node:22-slim`, ARM64）はそれをコピーして起動する。ビルドコンテキストはリポジトリルート（`.dockerignore` で `dist/mcp` と `docker/` 以外を除外）。CDK は `new ContainerImageBuild(this, 'McpImage', { directory: '.', file: 'docker/Dockerfile', platform: Platform.LINUX_ARM64, ignoreMode: IgnoreMode.DOCKER })`（`.dockerignore` を Docker の意味論で解釈させる。GLOB だと `.env` 等のドットファイルがアセットに入る）でデプロイ時に CodeBuild（ARM）上でビルドし、`AgentRuntimeArtifact.fromEcrRepository(image.repository, image.imageTag)` で Runtime に渡す（ADR-0005）。`cdk synth` / `cdk deploy` の前に `npm run build` を実行する。`lifecycleConfiguration.idleRuntimeSessionTimeout` = 5 分。
 - **依存**: core/*, DynamoDB, S3, Secrets Manager, IMAP/SMTP, EventBridge Scheduler
 
-### 3.1b façade（CloudFront + CloudFront Functions）
+### 3.1b façade（CloudFront + CloudFront Function）
 
 - **責務**: Claude クライアント向けの OAuth ディスカバリと、AgentCore 呼出 URL の隠蔽。ランタイムを持たない。
 - **対応要件**: REQ-051
@@ -138,10 +137,10 @@ test/
 - **viewer-request 関数**（`infra/functions/viewer-request.js`、CDK が synth 時に `__RESOURCE_URL__` 等のプレースホルダを置換）:
   - `GET /.well-known/oauth-protected-resource` → 200 JSON `{ resource: "<façade>/mcp", authorization_servers: ["<façade>"], bearer_methods_supported: ["header"] }`
   - `GET /.well-known/oauth-authorization-server` → 200 JSON。`issuer` = Cognito の issuer、`authorization_endpoint` / `token_endpoint` / `revocation_endpoint` = Cognito Managed Login ドメインの `/oauth2/*`、`jwks_uri` = Cognito の JWKS、`code_challenge_methods_supported: ["S256"]`, `response_types_supported: ["code"]`, `grant_types_supported: ["authorization_code","refresh_token"]`, `token_endpoint_auth_methods_supported: ["none"]`, `scopes_supported: ["openid","email","profile"]`
-  - `POST /mcp` → `request.uri` を `/runtimes/<URL エンコード ARN>/invocations` に書き換え、`request.querystring.qualifier = "DEFAULT"` を付与してオリジンへ
+  - `POST /mcp` → `Authorization` が無ければ 401 + `WWW-Authenticate: Bearer resource_metadata="<façade>/.well-known/oauth-protected-resource"`。Bearer の JWT payload を復号し `exp` が過去または形式不正なら 401 + `error="invalid_token"`（署名・client_id の検証は AgentCore）。通れば `request.uri` を `/runtimes/<URL エンコード ARN>/invocations` に書き換え、`request.querystring.qualifier = "DEFAULT"` を付与してオリジンへ
   - それ以外 → 404
-- **viewer-response 関数**（`infra/functions/viewer-response.js`）: ステータス 401 のとき `WWW-Authenticate: Bearer resource_metadata="<façade>/.well-known/oauth-protected-resource"` に上書き。
-- **制約**: CloudFront Functions はコード 10 KB 以内、リクエスト本文を読めない（不要）。SSE ストリーミングは使わない（JSON 応答のみ）。
+- **viewer-response 関数は使わない**: CloudFront はオリジンのエラー応答（`x-cache: Error from cloudfront`、AgentCore の 401 を含む）で viewer-response 関数を呼ばないため、401 の `WWW-Authenticate` 上書きは成立しない（2026-09-19 に dev で確認）。署名不正など AgentCore が返す 401 は AgentCore 自身の PRM を指すが、正規のクライアントが到達するのは期限切れ（viewer-request が先に判定）までで、実害はない。
+- **制約**: CloudFront Functions はコード 10 KB 以内、リクエスト本文を読めない（不要）。`Date` は関数開始時刻固定（exp 判定には十分）。SSE ストリーミングは使わない（JSON 応答のみ）。
 - **依存**: AgentCore Runtime（オリジン）。Cognito の値は synth 時に埋め込む
 
 MCP ツール一覧（名前は snake_case。入力は zod で定義し SDK が JSON Schema 化する）:
@@ -233,7 +232,7 @@ DynamoDB テーブル `MailTable-<stage>`（PK: `PK` string, SK: `SK` string, �
 | GET | `<façade>/.well-known/oauth-protected-resource` | - | `{resource, authorization_servers:[<façade>], bearer_methods_supported:["header"]}`（CloudFront Function が生成） | REQ-051 |
 | GET | `<façade>/.well-known/oauth-authorization-server` | - | Cognito のエンドポイントを転記した AS メタデータ + `code_challenge_methods_supported:["S256"]`（CloudFront Function が生成） | REQ-051 |
 | POST | `<façade>/mcp` | JSON-RPC (`initialize`, `tools/list`, `tools/call`) + `Authorization: Bearer` | JSON-RPC 応答（AgentCore からの転送） | REQ-050 |
-| POST | `<façade>/mcp`（トークン無し / 不正） | - | AgentCore が 401（検証失敗は 403 の場合あり）。façade が 401 の `WWW-Authenticate` を `Bearer resource_metadata="<façade>/.well-known/oauth-protected-resource"` に上書き | REQ-051 |
+| POST | `<façade>/mcp`（トークン無し / 期限切れ / 形式不正） | - | façade（viewer-request）が 401 + `WWW-Authenticate: Bearer resource_metadata="<façade>/.well-known/oauth-protected-resource"`。署名不正等は AgentCore が 401（AgentCore 自身の PRM） | REQ-051 |
 | POST | コンテナ内 `:8000/mcp` | 上記と同じ JSON-RPC | 同上 | REQ-050 |
 
 `<façade>` = `https://<distribution>.cloudfront.net`。
@@ -266,7 +265,7 @@ Secrets Manager `mail-mcp/<stage>/mail`（人間が値を入れる。CDK はプ�
 
 | 状況 | 振る舞い | 対応要件 |
 |------|----------|----------|
-| トークン無し / 検証失敗 | AgentCore が 401 / 403 を返し、コンテナに到達しない。façade が 401 の WWW-Authenticate を PRM へ向ける | REQ-051 |
+| トークン無し / 期限切れ / 形式不正 | façade の viewer-request が 401（façade の PRM を指す）を返し、オリジンに到達しない。署名不正等は AgentCore が 401 / 403 | REQ-051 |
 | ツール入力のスキーマ違反 | SDK が JSON-RPC エラー（-32602）で拒否 | REQ-050 |
 | メッセージ ID が存在しない | ツール結果 `isError: true`, `message not found` | REQ-011 |
 | 宛先無し / 形式不正 | 送信せず `isError: true` | REQ-020, REQ-040 |
@@ -320,7 +319,7 @@ NFR-001（5 USD 以内、アイドル時 1 USD 未満）を満たす。dev / pro
 - ユニット (`npm test`, vitest):
   - 純粋ロジック（ids / mime / search / compose / scheduled 状態遷移 / imap の移動戦略決定）はモック無しでテストする。mailparser には実際の `.eml` フィクスチャを渡す。
   - AWS SDK は `aws-sdk-client-mock`、`imapflow` / `nodemailer` はインターフェース（`ImapSession` / `SmtpSender`）のフェイク実装で差し替える。
-  - CloudFront Functions（`infra/functions/*.js`）は vitest からそのまま読み込み、`handler(event)` に viewer-request / viewer-response イベントを渡して、well-known の JSON、`/mcp` の URI 書換、401 のヘッダ上書きを検証する。
+  - CloudFront Function（`infra/functions/viewer-request.js`）は vitest からそのまま読み込み、`handler(event)` に viewer-request イベントを渡して、well-known の JSON、トークン無し / 期限切れの 401、`/mcp` の URI 書換を検証する。
   - mcp-server はプロセス内で `http.createServer` を起動し、SDK のクライアント（Streamable HTTP）から `initialize` / `tools/list` を実行して検証する（`Mcp-Session-Id` 付きリクエストが拒否されないことを含む）。
   - 静的テスト: `src/` に `expunge` を含む呼出が無いこと（REQ-032）。
   - CDK assertions: スタック名の stage 切替、S3 BlockPublicAccess、TTL・ライフサイクル、各 Lambda のロール分離、アラームの存在。
@@ -368,7 +367,7 @@ CI/CD テンプレートへの追加: 3 ワークフローとも `npm ci` の後
 | REQ-042 | scheduled-send, scheduled.ts | ユニット（同時発火で送信 1 回） |
 | REQ-043 | scheduled-send | ユニット（再試行、unknown-delivery） |
 | REQ-050 | mcp/main.ts, mcp/server.ts, infra（AgentCore Runtime） | ユニット（initialize / tools/list をプロセス内 HTTP で実行）、CDK assertions（protocol MCP）、正常性テスト |
-| REQ-051 | infra/functions/viewer-request.js, viewer-response.js, infra（JWT 認可設定、CloudFront） | ユニット（関数の入出力）、CDK assertions（allowedClients、discovery URL、Functions の関連付け）、正常性テスト（無トークン 401） |
+| REQ-051 | infra/functions/viewer-request.js, infra（JWT 認可設定、CloudFront） | ユニット（関数の入出力）、CDK assertions（allowedClients、discovery URL、Function の関連付け）、正常性テスト（無トークン 401） |
 | REQ-052 | logger.ts, secrets.ts, 各ツールのエラー整形 | ユニット（エラーメッセージにパスワードが含まれない） |
 | NFR-001 | 本書 8 章 | 設計レビュー |
 | NFR-002 | infra（TTL、ライフサイクル） | CDK assertions |

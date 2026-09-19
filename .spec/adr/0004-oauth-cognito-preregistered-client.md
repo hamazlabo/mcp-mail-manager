@@ -24,7 +24,7 @@ Cognito User Pool（セルフサインアップ無効、ユーザは開発者 1 
 
 - トークン検証は AgentCore Runtime の JWT 認可（discovery URL = User Pool の `openid-configuration`、allowedClients = アプリクライアント ID）に委ねる。MCP サーバのコードは JWT を検証しない。
 - façade（ADR-0001、CloudFront Functions）が `GET /.well-known/oauth-protected-resource`（`resource` = façade の `/mcp`、`authorization_servers` = façade のベース URL）と `GET /.well-known/oauth-authorization-server`（Cognito の `authorization_endpoint` / `token_endpoint` / `jwks_uri` / `issuer` を転記し、`code_challenge_methods_supported: ["S256"]` と `response_types_supported: ["code"]` を明示）を静的 JSON で提供する。
-- 401 応答の `WWW-Authenticate` は façade の PRM URL を指す（viewer-response 関数で上書き）。
+- 401 応答の `WWW-Authenticate` は façade の PRM URL を指す（viewer-request 関数がトークン無し / 期限切れを判定して返す。CloudFront はオリジンのエラー応答で viewer-response を呼ばないため上書き方式は使えない）。
 - Claude Code は Cognito を直接辿ると PKCE 記載欠落で失敗する（anthropics/claude-code #13275、#35846。未修正）ため、façade のメタデータが必須である。
 
 利用手順は README に記載する: Claude Code は `--client-id <CDK 出力 UserPoolClientId>` と `--callback-port 8765`、Claude Desktop はカスタムコネクタで client ID を入力する。

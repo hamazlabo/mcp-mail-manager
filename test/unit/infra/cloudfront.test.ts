@@ -35,15 +35,13 @@ describe('CloudFront façade', () => {
     template.hasResourceProperties('AWS::CloudFront::Distribution', {
       DistributionConfig: Match.objectLike({
         DefaultCacheBehavior: Match.objectLike({
-          FunctionAssociations: Match.arrayWith([
-            Match.objectLike({ EventType: 'viewer-request' }),
-            Match.objectLike({ EventType: 'viewer-response' }),
-          ]),
+          // viewer-response はオリジンのエラー応答（401 等）で呼ばれないため使わない。認証の事前判定も viewer-request で行う
+          FunctionAssociations: [Match.objectLike({ EventType: 'viewer-request' })],
         }),
       }),
     });
     const functions = Object.values(template.findResources('AWS::CloudFront::Function'));
-    expect(functions).toHaveLength(2);
+    expect(functions).toHaveLength(1);
     for (const f of functions) expect(f.Properties.FunctionConfig.Runtime).toBe('cloudfront-js-2.0');
     // viewer-request にはプレースホルダが置換された Runtime ARN（GetAtt）と Cognito の値が埋め込まれる
     const codes = functions.map((f) => JSON.stringify(f.Properties.FunctionCode));
