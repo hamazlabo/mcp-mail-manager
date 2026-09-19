@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(.spec/**)",
+      "Edit(.spec/**)",
+      "Write(.spec/**)",
+      "Write(.learn/**)",
+      "Edit(.learn/**)",
+      "Read(.learn/**)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)"
+    ],
+    "deny": [
+      "Edit(.spec/constitution.md)",
+      "Write(.spec/constitution.md)"
+    ]
+  }
+}
