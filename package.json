@@ -21,7 +21,7 @@
     "@aws-sdk/lib-dynamodb": "^3.1136.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "html-to-text": "^10.0.1",
-    "imapflow": "^2.0.5",
+    "imapflow": "^2.0.6",
     "mailparser": "^3.9.28",
     "nodemailer": "^10.0.10",
     "zod": "^4.6.5"
