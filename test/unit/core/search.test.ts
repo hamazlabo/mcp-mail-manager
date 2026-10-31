@@ -55,11 +55,11 @@ describe('buildQuery', () => {
     expect(q.IndexName).toBe('GSI2');
     expect(q.ScanIndexForward).toBe(false);
     expect(q.Limit).toBe(20);
-    expect(q.KeyConditionExpression).toBe('GSI2PK = :pk AND GSI2SK BETWEEN :from AND :to');
+    expect(q.KeyConditionExpression).toBe('GSI2PK = :pk AND GSI2SK BETWEEN :since AND :before');
     expect(q.ExpressionAttributeValues).toMatchObject({
       ':pk': 'ALL',
-      ':from': '2026-06-21T12:00:00.000Z',
-      ':to': '2026-09-19T12:00:00.000Z￿',
+      ':since': '2026-06-21T12:00:00.000Z',
+      ':before': '2026-09-19T12:00:00.000Z￿',
     });
     expect(q.FilterExpression).toBeUndefined();
     expect(q.ExclusiveStartKey).toBeUndefined();
@@ -82,6 +82,22 @@ describe('buildQuery', () => {
       ':false': false,
       ':true': true,
     });
+  });
+
+  it('keeps the date range values separate from the from / to keyword filters (T-037)', () => {
+    // 実 DynamoDB では from 指定で BETWEEN の下限が差出人になり ValidationException、to 指定で before が効かなかった
+    const q = buildQuery(
+      { from: 'ALICE', to: 'Bob', since: '2026-09-01T00:00:00.000Z', before: '2026-09-10T00:00:00.000Z' },
+      'T',
+      now,
+    );
+    const values = q.ExpressionAttributeValues!;
+    const [, lower, upper] = q.KeyConditionExpression!.match(/BETWEEN (:\w+) AND (:\w+)/)!;
+    const [, fromKey] = q.FilterExpression!.match(/contains\(fromLower, (:\w+)\)/)!;
+    const [, toKey] = q.FilterExpression!.match(/contains\(toLower, (:\w+)\)/)!;
+
+    expect([values[lower], values[upper]]).toEqual(['2026-09-01T00:00:00.000Z', '2026-09-10T00:00:00.000Z￿']);
+    expect([values[fromKey], values[toKey]]).toEqual(['alice', 'bob']);
   });
 
   it('round-trips the cursor into ExclusiveStartKey', () => {

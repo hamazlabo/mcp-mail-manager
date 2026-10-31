@@ -34,7 +34,8 @@ export function normalizeSearch(input: SearchInput, now: Date): { since: string;
 
 export function buildQuery(input: SearchInput, tableName: string, now: Date): QueryCommandInput {
   const { since, before, limit } = normalizeSearch(input, now);
-  const values: Record<string, unknown> = { ':pk': 'ALL', ':from': since, ':to': `${before}￿` };
+  // 日時範囲は :since / :before。:from / :to は差出人・宛先のフィルタが使う（同名だと上書きされる）
+  const values: Record<string, unknown> = { ':pk': 'ALL', ':since': since, ':before': `${before}￿` };
   const filters: string[] = [];
 
   if (input.folder !== undefined) {
@@ -65,7 +66,7 @@ export function buildQuery(input: SearchInput, tableName: string, now: Date): Qu
   return {
     TableName: tableName,
     IndexName: GSI2,
-    KeyConditionExpression: 'GSI2PK = :pk AND GSI2SK BETWEEN :from AND :to',
+    KeyConditionExpression: 'GSI2PK = :pk AND GSI2SK BETWEEN :since AND :before',
     ExpressionAttributeValues: values,
     ScanIndexForward: false,
     Limit: limit,
