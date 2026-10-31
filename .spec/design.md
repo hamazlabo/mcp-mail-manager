@@ -57,6 +57,7 @@ flowchart LR
   - IMAP CAPABILITY: `IMAP4rev1 UIDPLUS CHILDREN NAMESPACE THREAD SORT QUOTA IDLE AUTH=PLAIN ACL`。**MOVE / SPECIAL-USE / CONDSTORE は無い**。したがって移動は `UID COPY` + `\Deleted`（UIDPLUS の `COPYUID` で新 UID が取れる）、特殊フォルダは設定値で指定する。
   - フォルダは `INBOX` 配下に区切り `.` で `INBOX.Sent` / `INBOX.Trash` / `INBOX.Draft` / `INBOX.spam`。
   - SMTP は 587（STARTTLS）と 465（SMTPS）の両方で `AUTH PLAIN / LOGIN / CRAM-MD5` が通る。送信上限は 100 通 / 15 分、メッセージ上限 200 MB。
+  - `EXAMINE` で開いた接続は新着状態（`\Recent`）を消費しない。`STATUS (RECENT)` も消費しない。2026-10-31 に実機で確認した（T-035、ADR-0007）。
 
 ## 2. 技術スタック
 

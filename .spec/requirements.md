@@ -292,6 +292,6 @@
 - [x] MCP クライアントの認証方式: OAuth 2.1（Cognito）に決定（REQ-051）。
 - [x] 件名キーワード検索: 日時範囲で絞った DynamoDB Query の結果に対して部分一致フィルタを行う（REQ-010）。全文検索サービスは使わない。
 - [x] IMAP MOVE 拡張非対応サーバでの移動手順: さくらのメールボックス（Courier-IMAP）は実サーバで MOVE 非対応と確認済み（2026-09-19）。移動は COPY + \Deleted で行い EXPUNGE はしない。移動元に \Deleted 付きで残るコピーは同期データから除外する。MOVE 対応サーバでは UID MOVE を使う。design.md 3.4 参照。
-- [ ] さくら（Courier-IMAP）が `EXAMINE` の後も新着状態（`\Recent`）を保つか: REQ-005 の実機確認で判定する。保たない場合は design.md に既知の制約として記録し、同期ジョブは `EXAMINE` のまま運用する（ユーザ判断 2026-10-31）。
-- [ ] POP 受信システムが受信済みを何で判断しているか（UIDL か新着状態か）: 不明のまま。REQ-005 によりどちらにも干渉しない作りにするので、本システムはこの答えに依存しない。
+- [x] さくら（Courier-IMAP）が `EXAMINE` の後も新着状態（`\Recent`）を保つか: 2026-10-31 に prod の確認で解決した。Gmail から自分宛てのテストメールを送り、`STATUS INBOX` で測った。到着後、同期を動かさずに約 12 分（33 回）測っても `recent=1` / `unseen=8` のまま変わらなかった（対照）。その後 dev の同期 Lambda を手動で起動した（INBOX に 1 通取込、全 5 フォルダを `EXAMINE` で開いて照合）。直後も `recent=1` / `unseen=8` で、Courier は `EXAMINE` の後も新着状態を保つ（T-035）。
+- [x] POP 受信システムが受信済みを何で判断しているか（UIDL か新着状態か）: 不明のままだが、調査不要として閉じる。同期ジョブは既読も新着状態も変えないことを実機で確認したので（上の項目）、どちらの基準でも干渉しない。
 - [x] Trash / Sent フォルダの特定方法: さくらは SPECIAL-USE 非対応と確認済み。Secrets Manager の設定値（`INBOX.Sent` / `INBOX.Trash`）を使う。SPECIAL-USE 対応サーバでは属性を優先する。design.md 3.2 参照。

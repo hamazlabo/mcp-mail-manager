@@ -18,6 +18,10 @@ promoted_in:
 
 メールサーバの状態を変えたくない処理は、`mailboxOpen(path, { readOnly: true })`（= `EXAMINE`）で開く。STORE / COPY が要る整理操作だけを `SELECT` にする。実機で状態を確かめるときは、フォルダを開かない `STATUS (MESSAGES RECENT UNSEEN)`（imapflow `status(path, { recent: true, ... })`）を使い、確認作業そのものが状態を変えないようにする。
 
+## 追記（2026-10-31 実機確認、T-035）
+
+さくら（Courier-IMAP）は、`EXAMINE` で開いた接続の後も `\Recent` を保つ。`STATUS (RECENT)` も消費しない。テストメールの到着後、同期なしで約 12 分のあいだ `recent=1` のまま変わらず、`EXAMINE` で全フォルダを開く同期を実行した後も `recent=1` だった。
+
 ## 適用先候補
 
 - .spec/design.md 3.4（反映済み: ADR-0007）

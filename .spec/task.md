@@ -299,7 +299,7 @@
   - 完了条件: テスト 2 本が通り、develop への push で dev にデプロイされ、正常性テストを通過して main（prod）へ昇格する
   - 依存: T-033
 
-- [ ] **T-035: 実機確認（手動確認）: 同期の前後で新着数・未読数が変わらない**
+- [x] **T-035: 実機確認（手動確認）: 同期の前後で新着数・未読数が変わらない**
   - 目的: `scripts/mailbox-status.ts` を作る。stage のシークレットで IMAP に接続し、フォルダを開かない `STATUS INBOX (MESSAGES RECENT UNSEEN)` の結果を `{ messages, recent, unseen }` の JSON で出力する。認証情報は出力しない。実行は `AWS_PROFILE=mail-manager_<stage> npx tsx scripts/mailbox-status.ts <stage>`。これを使い、design.md 9 章の「実機確認」の手順で、prod へのデプロイ後に確認する。エージェントはスクリプトと手順を整え、テストメールの送信と Lambda の手動起動は人間に依頼する
   - 対応要件: REQ-005, REQ-052
   - 対象ファイル: scripts/mailbox-status.ts, test/unit/scripts/mailbox-status.test.ts, .spec/design.md, .spec/requirements.md, .spec/specify.md
@@ -348,3 +348,4 @@
 | T-029 | 2026-09-19 | Claude Desktop（claude.ai カスタムコネクタ、client ID 入力、シークレット無し）で prod に接続できることを人間が確認。初回は Cognito が `resource` を拒否して失敗し、リソースサーバ登録（ADR-0004 訂正、L-0020）で解消。Claude Code（`--callback-port 8765`）はブラウザのあるマシンで別途確認 |
 | T-033 | 2026-10-31 | テスト 3 本（readOnly で全メソッドが EXAMINE / 既定は SELECT のまま / `openImapSession` が readOnly を渡す）。`fakeClient.mailboxOpen` が第 1 引数しか記録せず Red が実装後も残ったため、全引数を記録するよう修正（L-0024）。レビューで ADR-0007・design.md 3.4 の「EXAMINE でサーバが STORE を拒否する」は誤りと判明し訂正（imapflow は黙って捨てる。COPY は禁止されない。L-0025）。全 32 ファイル / 189 テスト通過 |
 | T-034 | 2026-10-31 | テスト 2 本（`openImap` を `{ readOnly: true }` で呼ぶ / 2 回の同期で初回・差分・照合を通して setFlags・move・append が 0 回、かつ既読反映・削除・新着取込が起きる）。push 前に origin/develop の Dependabot 更新（TypeScript 7.0.2、@types/node 26）へ rebase し、全 189 テスト・tsc・build・synth を確認。deploy-dev（run 41168650308、承認後）→ main 昇格 → deploy-prod（run 41168918851）とも正常性テスト込みで成功 |
+| T-035 | 2026-10-31 | テスト 3 本（3 キーのみ・パスワード無し / `status` だけで `mailboxOpen` 無し / `status` の false で例外）。実機確認はユーザの許可を得て Claude が Gmail から `contact@` 宛てにテストメールを送信。04:37 到着後、同期なしで約 12 分（33 回）`recent=1` / `unseen=8` のまま（対照）。dev 同期 Lambda の手動起動（INBOX 1 通取込、5 フォルダ照合）後も `recent=1` / `unseen=8`。DynamoDB（dev）に件名一致・`seen=false` で取込済み。Courier は `EXAMINE` で `\Recent` を保つ。requirements.md 4 章・specify.md 9 章の未決事項を閉じ、design.md 1 章に事実を追記 |
