@@ -291,7 +291,7 @@
   - 完了条件: 新規テスト 2 本と既存テストが通る
   - 依存: なし（T-011 は完了済み）
 
-- [ ] **T-034: 同期ジョブを読み取り専用セッションで実行する**
+- [x] **T-034: 同期ジョブを読み取り専用セッションで実行する**
   - 目的: `runSync` が `deps.openImap(config, { readOnly: true })` でセッションを開く（design.md 3.2）
   - 対応要件: REQ-005, REQ-001, REQ-003
   - 対象ファイル: src/sync/handler.ts, test/unit/sync/handler.test.ts
@@ -347,3 +347,4 @@
 | 実機テスト修正 | 2026-09-19 | Claude Desktop での手順 1〜6（2026-09-19）で判明した不具合 3 件を TDD で修正: 自分→自分のメールへの返信で宛先が空になる（REQ-021 どおり元 From へ）/ 存在しないフォルダへの移動が「uid not found」になる（imapflow が false を返すため移動先の存在確認を追加）/ タグ無し text/html のみのメールで本文が空（html-to-text で変換）。設計上の制約 2 件（同一 Message-ID の複数フォルダ、list_folders の件数は 15 分周期の同期スナップショット）はユーザ判断待ち |
 | T-029 | 2026-09-19 | Claude Desktop（claude.ai カスタムコネクタ、client ID 入力、シークレット無し）で prod に接続できることを人間が確認。初回は Cognito が `resource` を拒否して失敗し、リソースサーバ登録（ADR-0004 訂正、L-0020）で解消。Claude Code（`--callback-port 8765`）はブラウザのあるマシンで別途確認 |
 | T-033 | 2026-10-31 | テスト 3 本（readOnly で全メソッドが EXAMINE / 既定は SELECT のまま / `openImapSession` が readOnly を渡す）。`fakeClient.mailboxOpen` が第 1 引数しか記録せず Red が実装後も残ったため、全引数を記録するよう修正（L-0024）。レビューで ADR-0007・design.md 3.4 の「EXAMINE でサーバが STORE を拒否する」は誤りと判明し訂正（imapflow は黙って捨てる。COPY は禁止されない。L-0025）。全 32 ファイル / 189 テスト通過 |
+| T-034 | 2026-10-31 | テスト 2 本（`openImap` を `{ readOnly: true }` で呼ぶ / 2 回の同期で初回・差分・照合を通して setFlags・move・append が 0 回、かつ既読反映・削除・新着取込が起きる）。push 前に origin/develop の Dependabot 更新（TypeScript 7.0.2、@types/node 26）へ rebase し、全 189 テスト・tsc・build・synth を確認。deploy-dev（run 41168650308、承認後）→ main 昇格 → deploy-prod（run 41168918851）とも正常性テスト込みで成功 |
