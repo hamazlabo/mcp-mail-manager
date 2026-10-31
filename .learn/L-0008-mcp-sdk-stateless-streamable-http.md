@@ -3,9 +3,10 @@ id: L-0008
 date: 2026-09-19
 task: T-019
 category: tech
-status: new
+status: rejected
 promoted_to:
 promoted_in:
+reason: "記載済み（design.md 3.1「処理」・9 章）。ツール 0 件で -32601 になる件は T-019 固有で再発しない"
 ---
 
 # MCP SDK 1.30 のステートレス Streamable HTTP の癖

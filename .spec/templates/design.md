@@ -56,6 +56,11 @@ flowchart LR
 ## 7. セキュリティ
 
 - 認証・認可: {{IAM / Cognito など}}
+- MCP の OAuth 2.1（Cognito を認可サーバにする場合のみ）:
+  - Cognito は（2026-09 時点）RFC 8414 メタデータと DCR を持たず、`openid-configuration` に `code_challenge_methods_supported` も無い（Claude Code は PKCE 非対応とみなして失敗する）。MCP サーバと同一オリジンで `/.well-known/oauth-protected-resource` と `/.well-known/oauth-authorization-server`（`code_challenge_methods_supported: ["S256"]` を明示）を返し、client ID とコールバック URL は事前登録する。
+  - PRM の `authorization_servers` はパス無しの URL にする（パス付きだと well-known はパスの前に挿入して探される。API Gateway REST API はステージパスが付くため独自ドメインが要る）。
+  - MCP サーバの URL（PRM の `resource`）を識別子にしたリソースサーバを登録する。未登録だと、authorize に `resource` を付けたフローの token 交換が `invalid_grant` になる。検証は well-known の確認で終えず、`resource` 付きの認可コードフローを token 交換まで通す。
+  - 401 の `WWW-Authenticate` は自前の PRM を指す。前段の CloudFront でオリジンの 401 を書き換えることはできない（viewer-response 関数はオリジンの 4xx/5xx で呼ばれない）ため、viewer-request で先に 401 を返す。
 - シークレット管理: {{Secrets Manager / SSM}}
 - 最小権限: {{}}
 

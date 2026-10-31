@@ -3,9 +3,9 @@ id: L-0018
 date: 2026-09-19
 task: T-027, T-028
 category: pitfall
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/templates/design.md
+promoted_in: v1
 ---
 
 # CloudFront はオリジンのエラー応答（4xx/5xx）で viewer-response 関数を呼ばない

@@ -3,9 +3,9 @@ id: L-0001
 date: 2026-09-19
 task: なし（/sdd init の設計調査）
 category: pitfall
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/templates/design.md
+promoted_in: v1
 ---
 
 # Cognito の OIDC メタデータは PKCE を広告せず、Claude Code の MCP OAuth が失敗する

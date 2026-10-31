@@ -3,9 +3,10 @@ id: L-0019
 date: 2026-09-19
 task: T-029
 category: domain
-status: new
+status: rejected
 promoted_to:
 promoted_in:
+reason: "記載済み（README.md の初回ログイン手順とトラブルシュート表）"
 ---
 
 # Cognito の招待メール（Your temporary password）は text/html パートのみで、HTML を表示しないウェブメールでは本文が空に見える

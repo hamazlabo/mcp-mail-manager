@@ -3,9 +3,10 @@ id: L-0011
 date: 2026-09-19
 task: T-004
 category: pitfall
-status: new
+status: rejected
 promoted_to:
 promoted_in:
+reason: "記載済み（.github/workflows/README.md「AWS 側の設定」、infra/bootstrap/github-oidc.yaml）"
 ---
 
 # GitHub OIDC デプロイロール: sub は environment 付き・数値 ID 付きになる。IAM Role の Description は日本語不可

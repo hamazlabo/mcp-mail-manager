@@ -3,9 +3,9 @@ id: L-0016
 date: 2026-09-19
 task: T-025, T-026, T-027
 category: tech
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/templates/task.md
+promoted_in: v1
 ---
 
 # AgentCore Runtime L2（aws-cdk-lib 2.270）の実 API と、CDK assertions / Cognito の癖

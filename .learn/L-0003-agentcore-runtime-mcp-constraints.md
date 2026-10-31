@@ -3,9 +3,10 @@ id: L-0003
 date: 2026-09-19
 task: なし（/sdd init の設計調査）
 category: tech
-status: new
+status: rejected
 promoted_to:
 promoted_in:
+reason: "記載済み（design.md 1・3.1・8 章、ADR-0001 / 0004 / 0005）"
 ---
 
 # AgentCore Runtime で MCP をホストする際の制約と料金（2026-09 時点）

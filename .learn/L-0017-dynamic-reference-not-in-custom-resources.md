@@ -3,9 +3,10 @@ id: L-0017
 date: 2026-09-19
 task: T-025, T-028
 category: pitfall
-status: new
+status: rejected
 promoted_to:
 promoted_in:
+reason: "記載済み（design.md 7 章「シークレット管理」、task.md T-028 の完了ログ）"
 ---
 
 # CloudFormation の動的参照 {{resolve:secretsmanager:...}} はカスタムリソースでは解決されない

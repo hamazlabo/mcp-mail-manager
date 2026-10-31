@@ -3,9 +3,9 @@ id: L-0002
 date: 2026-09-19
 task: なし（/sdd init の設計調査）
 category: pitfall
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/templates/design.md
+promoted_in: v1
 ---
 
 # API Gateway REST API のステージパスは OAuth メタデータの発見 URL を壊す

@@ -3,9 +3,10 @@ id: L-0004
 date: 2026-09-19
 task: なし（/sdd init の仕様確認）
 category: domain
-status: new
+status: rejected
 promoted_to:
 promoted_in:
+reason: "記載済み（design.md 1 章のさくらの制約・5 章の MX 導出、README.md の Secrets の表）"
 ---
 
 # さくらのメールボックス（Courier-IMAP）の接続仕様と機能

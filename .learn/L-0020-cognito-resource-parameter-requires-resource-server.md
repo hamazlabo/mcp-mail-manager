@@ -3,9 +3,9 @@ id: L-0020
 date: 2026-09-19
 task: T-029
 category: pitfall
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/templates/design.md
+promoted_in: v1
 ---
 
 # Cognito は RFC 8707 の resource パラメータを検証する。未登録の resource は token 交換で invalid_grant になる

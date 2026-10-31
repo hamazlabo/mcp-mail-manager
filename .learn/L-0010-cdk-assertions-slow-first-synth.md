@@ -3,9 +3,9 @@ id: L-0010
 date: 2026-09-19
 task: T-014
 category: pitfall
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/templates/task.md
+promoted_in: v1
 ---
 
 # autoDeleteObjects を含むスタックの初回 Template.fromStack は 5〜10 秒かかり vitest の既定タイムアウトを超える

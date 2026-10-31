@@ -3,9 +3,9 @@ id: L-0006
 date: 2026-09-19
 task: T-011
 category: domain
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/design.md
+promoted_in: v1
 ---
 
 # IMAP の `n:*` は n が最大 UID を超えると最後の 1 通を返す

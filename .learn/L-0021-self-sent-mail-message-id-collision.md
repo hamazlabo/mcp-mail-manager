@@ -3,9 +3,10 @@ id: L-0021
 date: 2026-09-19
 task: T-016（設計 4 章）
 category: domain
-status: new
+status: rejected
 promoted_to:
 promoted_in:
+reason: "記載済み（ADR-0006、design.md 4 章）"
 ---
 
 # 自分宛に送ったメールは INBOX と Sent で Message-ID が同じため、id = sha256(Message-ID) の設計では 1 レコードに畳まれる

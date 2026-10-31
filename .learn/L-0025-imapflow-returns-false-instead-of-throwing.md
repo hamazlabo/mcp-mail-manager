@@ -3,9 +3,9 @@ id: L-0025
 date: 2026-10-31
 task: T-033, T-035
 category: pitfall
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/design.md
+promoted_in: v1
 ---
 
 # imapflow は STATUS / STORE の失敗を例外ではなく false で返し、読み取り専用のフォルダへの STORE は黙って捨てる

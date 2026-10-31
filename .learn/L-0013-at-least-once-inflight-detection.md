@@ -3,9 +3,10 @@ id: L-0013
 date: 2026-09-19
 task: T-030
 category: pitfall
-status: new
+status: rejected
 promoted_to:
 promoted_in:
+reason: "記載済み（design.md 3.3 の sending の鮮度判定・タイムアウト 5 分以下・失敗時の状態遷移）"
 ---
 
 # at-least-once のスケジューラで「sending で再発火 → 結果不明」を判定すると、同時重複発火で誤って failed になる

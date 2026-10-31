@@ -191,9 +191,13 @@ MCP ツール一覧（名前は snake_case。入力は zod で定義し SDK が 
 
 ### 3.4 core/imap.ts（ImapSession）
 
-- 接続ごとに `CAPABILITY` を確認し、移動戦略を決める: `MOVE` があれば `UID MOVE`、無ければ `UID COPY` + `\Deleted` フラグ付与（さくらは後者。**EXPUNGE は呼ばない**ため、移動元には `\Deleted` 付きのコピーが残り、メールクライアント側の expunge で消える。同期の照合フェーズは `\Deleted` 付きメッセージを「消失」として扱い DynamoDB から除外する。`imapflow` の `messageDelete` / `mailboxClose` の expunge 動作を使わず、`mailboxClose` は `mailboxOpen` で `readOnly` でない場合も `noExpunge` 相当の手順で閉じる）。静的テストで `expunge` 文字列がコードに現れないことを検証する（REQ-032）。
+- 接続ごとに `CAPABILITY` を確認し、移動戦略を決める: `MOVE` があれば `UID MOVE`、無ければ `UID COPY` + `\Deleted` フラグ付与（さくらは後者。**EXPUNGE は呼ばない**ため、移動元には `\Deleted` 付きのコピーが残り、メールクライアント側の expunge で消える。同期の照合フェーズは `\Deleted` 付きメッセージを「消失」として扱い DynamoDB から除外する。`imapflow` の `messageDelete`、`mailboxClose`（IMAP `CLOSE` = 暗黙の expunge）、MOVE 非対応のサーバでの `messageMove`（内部で COPY + `\Deleted` + EXPUNGE に切り替わる）は使わない。フォルダの切替は次の `mailboxOpen`、接続の終了は `logout` だけで行う）。静的テストで `expunge` / `messageDelete` / `mailboxClose` がコードに現れないことを検証する（REQ-032）。
 - 開くモード（ADR-0007）: `openImapSession(config, { readOnly: true })` で作ったセッションは、`mailboxOpen(path, { readOnly: true })`（= `EXAMINE`）で全フォルダを開く。これを使うのは同期ジョブだけ。オプション無し（既定）は従来どおり `SELECT` で、MCP ツールと scheduled-send が使う。フラグの変更（STORE、MOVE 非対応時の移動の `\Deleted` を含む）は読み書きで開いたフォルダでしか効かないため。`SELECT` はそのフォルダ内の全メッセージの新着状態（`\Recent`）を消費する。整理操作はエージェントへの明示的な依頼なので、これを許容する。`EXAMINE` は誤った書込みを防ぐ仕組みではない。COPY は禁止されず、imapflow は読み取り専用のフォルダへの STORE を例外にせず黙って捨てる。REQ-005 の保証は、同期ジョブが `setFlags` / `move` / `append` を呼ばないこと（ユニットテストで検証）による。
 - 整理操作は「IMAP 成功 → DynamoDB 更新」の順（REQ-030〜033）。移動後の新 UID は `UID MOVE` / `UID COPY` の `COPYUID` 応答から取り、新 id（Message-ID + 移動先フォルダ）のレコードを作成して旧レコードを削除する（ADR-0006）。
+- 次の imapflow / IMAP のふるまいは ImapSession の中で吸収する（`status()` は `scripts/mailbox-status.ts`）:
+  - imapflow は一部の失敗を例外ではなく `false` で返す。`messageCopy` / `messageMove` / `search` はサーバの `NO`（移動先が無いときの `NO [TRYCREATE]` を含む）、`messageFlagsAdd` / `messageFlagsRemove` はサーバの `NO` と `PERMANENTFLAGS` に無いフラグの付与、`status()` は NotFound 以外のエラーで `false` を返す（`status()` は型定義にも `false` が現れない）。`false` は失敗として扱い、`?? 0` や `[]` で既定値に置き換えない（失敗が「0 件」に見える）。整理操作では例外にし、DynamoDB を変更しない（6 章）。
+  - `list()` は SPECIAL-USE 非対応のサーバでもフォルダ名から `specialUse` を推定する（`specialUseSource: 'name'`）。名前由来のものは採用しない。
+  - `UID SEARCH` / `UID FETCH` の `n:*` は、n が最大 UID を超えると最大 UID の 1 通を返す（RFC 3501）。`searchUids` / `fetchFlags` は結果を `uid >= n` で絞り、新着の無い同期で最後の 1 通を再取込しない。
 
 ### 3.5 core/compose.ts
 
@@ -226,7 +230,7 @@ DynamoDB テーブル `MailTable-<stage>`（PK: `PK` string, SK: `SK` string, �
 | 予約一覧 | GSI2 Query `GSI2PK = SCHED` |
 | 予約の遷移 | UpdateItem + ConditionExpression |
 
-件名・差出人の部分一致は FilterExpression の `contains` で行い、`limit` に満たない場合は継続キーで内部的に最大 5 ページまで読み進める。日時範囲未指定時は直近 90 日（REQ-010）。
+件名・差出人・宛先の部分一致は、保存時に小文字化した属性（`subjectLower` / `fromLower` / `toLower`）に対し、入力も小文字化して FilterExpression の `contains` で行う（`contains` は大小文字を区別するため）。`limit` に満たない場合は継続キーで内部的に最大 5 ページまで読み進める。日時範囲未指定時は直近 90 日（REQ-010）。
 
 ## 5. API / インターフェース定義
 

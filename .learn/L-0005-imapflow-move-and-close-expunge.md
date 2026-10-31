@@ -3,9 +3,9 @@ id: L-0005
 date: 2026-09-19
 task: T-011
 category: pitfall
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/design.md
+promoted_in: v1
 ---
 
 # imapflow の messageMove / mailboxClose は EXPUNGE を発行し、list() はフォルダ名から SPECIAL-USE を推定する

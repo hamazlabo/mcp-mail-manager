@@ -3,9 +3,10 @@ id: L-0023
 date: 2026-10-31
 task: なし（/sdd init の仕様確認）
 category: domain
-status: new
+status: rejected
 promoted_to:
 promoted_in:
+reason: "記載済み（ADR-0007、design.md 1・3.2・3.4・9 章、specify.md 用語集、REQ-005）"
 ---
 
 # IMAP の SELECT は `\Recent` を消費する。読むだけの処理は EXAMINE、件数確認は STATUS を使う

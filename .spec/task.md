@@ -307,6 +307,24 @@
   - 完了条件: テストが通る。実機確認で同期の前後の `recent` / `unseen` が一致する。対照測定で変化が無いのに同期の後だけ減ることが再現した場合は、design.md 1 章の「さくらのメールボックスの制約」に「Courier は `EXAMINE` でも新着状態を消費する」と追記する。どちらの場合も、requirements.md 4 章と specify.md 9 章の未決事項に結果を記入して閉じる
   - 依存: T-034（prod への昇格後）
 
+## フェーズ 7: 不具合修正（/sdd upgrade v1 のレビューで発見）
+
+- [ ] **T-036: imapflow が返す false を失敗として扱う**
+  - 目的: design.md 3.4 の規則（imapflow は一部の失敗を例外ではなく `false` で返す）に `ImapFlowSession` を合わせる。`setFlags` は `messageFlagsAdd` / `messageFlagsRemove` の `false` を無視して成功を返しており、REQ-030 / REQ-033 の「IMAP 更新失敗時は DynamoDB を変更せずエラー」に反する。`move` の `\Deleted` 付与（MOVE 非対応時）も同様。`searchUids` は `search` の `false` を `[]` にするので、初回同期が 0 件のまま完了扱いになりうる。`searchSent` は `false` を「Sent に無い」と読み、予約送信を誤って `failed(unknown-delivery)` にしうる
+  - 対応要件: REQ-030, REQ-031, REQ-033, REQ-001, REQ-043
+  - 対象ファイル: src/core/imap.ts, test/unit/core/imap.test.ts
+  - 最初に書くテスト: `messageFlagsAdd` が false を返すと `setFlags` が例外になる / MOVE 非対応時に `\Deleted` の付与が false なら `move` が例外になる（COPY 済みであることをメッセージに含める）/ `search` が false なら `searchUids` と `searchSent` が例外になる（imap.test.ts の `false → []` の期待を改める）
+  - 完了条件: テスト 3 本が通り、整理ツールのテスト（tools-organize）で IMAP 失敗時に DynamoDB が変わらないことが既存テストのとおり保たれる
+  - 依存: なし
+
+- [ ] **T-037: 検索の日時範囲と差出人・宛先のプレースホルダ衝突を直す**
+  - 目的: `buildQuery` が、日時範囲の KeyCondition（`BETWEEN :from AND :to`）と、差出人・宛先の FilterExpression（`contains(fromLower, :from)` / `contains(toLower, :to)`）で同じプレースホルダを共用している。`from` を指定すると日時の下限が差出人の文字列になり、ValidationException か 0 件になる。`to` を指定すると `before` が効かない。日時のプレースホルダ名を分ける
+  - 対応要件: REQ-010
+  - 対象ファイル: src/core/search.ts, test/unit/core/search.test.ts
+  - 最初に書くテスト（再現）: `from` と `to` を指定しても、BETWEEN の値が since / before の ISO 文字列のままで、フィルタの値が小文字化した差出人・宛先になる（search.test.ts の、壊れた値を固定している期待を改める）
+  - 完了条件: テストが通り、prod で `search_messages` に `from` を指定して結果が返る（手動確認）
+  - 依存: なし
+
 ## 完了ログ
 
 | タスク | 完了日 | 備考 |

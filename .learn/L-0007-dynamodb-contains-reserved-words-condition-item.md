@@ -3,9 +3,9 @@ id: L-0007
 date: 2026-09-19
 task: T-008, T-009, T-013
 category: pitfall
-status: new
-promoted_to:
-promoted_in:
+status: promoted
+promoted_to: .spec/design.md
+promoted_in: v1
 ---
 
 # DynamoDB の落とし穴 3 点: contains は大小区別、予約語、ConditionalCheckFailedException.Item は unmarshall されない
