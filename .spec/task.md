@@ -281,6 +281,32 @@
   - 完了条件: README の手順だけで prod への登録が完了する
   - 依存: T-029, T-031
 
+## フェーズ 6: 同期の読み取り専用化（ADR-0007）
+
+- [x] **T-033: ImapSession の読み取り専用モード**
+  - 目的: `openImapSession(config, { readOnly: true })` で作ったセッションが、全フォルダを `mailboxOpen(path, { readOnly: true })`（= `EXAMINE`）で開く。`ImapSessionFactory` の型に省略可能な第 2 引数 `{ readOnly?: boolean }` を足す。既定（オプション無し）は従来どおり `SELECT`
+  - 対応要件: REQ-005
+  - 対象ファイル: src/core/imap.ts, test/unit/core/imap.test.ts
+  - 最初に書くテスト: `readOnly: true` の `ImapFlowSession` で `select` / `searchUids` / `fetchMessages` / `fetchFlags` を呼ぶと、`mailboxOpen` がすべて `{ readOnly: true }` 付きで呼ばれる / 既定のセッションでは `mailboxOpen` に `readOnly` が付かない（MCP ツール・scheduled-send の挙動を変えない）。本文を `BODY.PEEK[]` で取ること（`fetchAll` のクエリが `source: true`）は既存テストが固定している
+  - 完了条件: 新規テスト 2 本と既存テストが通る
+  - 依存: なし（T-011 は完了済み）
+
+- [ ] **T-034: 同期ジョブを読み取り専用セッションで実行する**
+  - 目的: `runSync` が `deps.openImap(config, { readOnly: true })` でセッションを開く（design.md 3.2）
+  - 対応要件: REQ-005, REQ-001, REQ-003
+  - 対象ファイル: src/sync/handler.ts, test/unit/sync/handler.test.ts
+  - 最初に書くテスト: `runSync` が `openImap` を `{ readOnly: true }` で呼ぶ / `FakeImapSession` で次を 2 回続けて実行しても、`calls` に `setFlags` / `move` / `append` が 1 件も現れない: 初回取込、差分取込、照合（既読の変化・消失・`\Deleted` 付きを含む）
+  - 完了条件: テスト 2 本が通り、develop への push で dev にデプロイされ、正常性テストを通過して main（prod）へ昇格する
+  - 依存: T-033
+
+- [ ] **T-035: 実機確認（手動確認）: 同期の前後で新着数・未読数が変わらない**
+  - 目的: `scripts/mailbox-status.ts` を作る。stage のシークレットで IMAP に接続し、フォルダを開かない `STATUS INBOX (MESSAGES RECENT UNSEEN)` の結果を `{ messages, recent, unseen }` の JSON で出力する。認証情報は出力しない。実行は `AWS_PROFILE=mail-manager_<stage> npx tsx scripts/mailbox-status.ts <stage>`。これを使い、design.md 9 章の「実機確認」の手順で、prod へのデプロイ後に確認する。エージェントはスクリプトと手順を整え、テストメールの送信と Lambda の手動起動は人間に依頼する
+  - 対応要件: REQ-005, REQ-052
+  - 対象ファイル: scripts/mailbox-status.ts, test/unit/scripts/mailbox-status.test.ts, .spec/design.md, .spec/requirements.md, .spec/specify.md
+  - 最初に書くテスト: imapflow をモックし、出力が `messages` / `recent` / `unseen` の 3 キーだけで、パスワードを含まない / 呼ぶのは `status` だけで、`mailboxOpen` を呼ばない / `status` が false（imapflow は失敗を例外ではなく false で返す）なら 0 件を出さずに例外にする
+  - 完了条件: テストが通る。実機確認で同期の前後の `recent` / `unseen` が一致する。対照測定で変化が無いのに同期の後だけ減ることが再現した場合は、design.md 1 章の「さくらのメールボックスの制約」に「Courier は `EXAMINE` でも新着状態を消費する」と追記する。どちらの場合も、requirements.md 4 章と specify.md 9 章の未決事項に結果を記入して閉じる
+  - 依存: T-034（prod への昇格後）
+
 ## 完了ログ
 
 | タスク | 完了日 | 備考 |
@@ -320,3 +346,4 @@
 | lastSyncAt 追加 | 2026-09-19 | REQ-012 を更新し、`list_folders` の応答に同期時刻 `lastSyncAt` を追加（件数がスナップショットであることをモデルが説明できるように）。テスト 1 本更新 |
 | 実機テスト修正 | 2026-09-19 | Claude Desktop での手順 1〜6（2026-09-19）で判明した不具合 3 件を TDD で修正: 自分→自分のメールへの返信で宛先が空になる（REQ-021 どおり元 From へ）/ 存在しないフォルダへの移動が「uid not found」になる（imapflow が false を返すため移動先の存在確認を追加）/ タグ無し text/html のみのメールで本文が空（html-to-text で変換）。設計上の制約 2 件（同一 Message-ID の複数フォルダ、list_folders の件数は 15 分周期の同期スナップショット）はユーザ判断待ち |
 | T-029 | 2026-09-19 | Claude Desktop（claude.ai カスタムコネクタ、client ID 入力、シークレット無し）で prod に接続できることを人間が確認。初回は Cognito が `resource` を拒否して失敗し、リソースサーバ登録（ADR-0004 訂正、L-0020）で解消。Claude Code（`--callback-port 8765`）はブラウザのあるマシンで別途確認 |
+| T-033 | 2026-10-31 | テスト 3 本（readOnly で全メソッドが EXAMINE / 既定は SELECT のまま / `openImapSession` が readOnly を渡す）。`fakeClient.mailboxOpen` が第 1 引数しか記録せず Red が実装後も残ったため、全引数を記録するよう修正（L-0024）。レビューで ADR-0007・design.md 3.4 の「EXAMINE でサーバが STORE を拒否する」は誤りと判明し訂正（imapflow は黙って捨てる。COPY は禁止されない。L-0025）。全 32 ファイル / 189 テスト通過 |

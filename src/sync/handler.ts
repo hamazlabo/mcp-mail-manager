@@ -22,7 +22,8 @@ export interface SyncDeps {
 export async function runSync(deps: SyncDeps): Promise<{ complete: boolean; folders: number }> {
   const { store, clock } = deps;
   const config = await deps.loadConfig();
-  const imap = await deps.openImap(config);
+  // 読み取り専用（EXAMINE）で開き、メールサーバの状態を変えない（REQ-005、ADR-0007）
+  const imap = await deps.openImap(config, { readOnly: true });
   try {
     const now = clock.now();
     const folders = await saveFolders({ imap, store, now });

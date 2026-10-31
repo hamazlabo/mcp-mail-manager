@@ -19,6 +19,7 @@ const config: MailConfig = {
 
 // openImapSession のテスト用: imapflow のコンストラクタ引数を記録する
 const ctor = vi.hoisted(() => vi.fn());
+const ctorMailboxOpen = vi.hoisted(() => vi.fn());
 vi.mock('imapflow', () => ({
   ImapFlow: class {
     capabilities = new Map();
@@ -26,6 +27,10 @@ vi.mock('imapflow', () => ({
       ctor(options);
     }
     async connect() {}
+    async mailboxOpen(...args: unknown[]) {
+      ctorMailboxOpen(...args);
+      return { uidValidity: 1n, uidNext: 1, exists: 0 };
+    }
   },
 }));
 
@@ -58,8 +63,8 @@ function fakeClient(caps: string[], opts: { specialUse?: boolean } = {}) {
       }
       return [{ path: 'INBOX', name: 'INBOX', delimiter: '.', flags: new Set<string>() }, sent, trash];
     },
-    async mailboxOpen(path: string) {
-      record('mailboxOpen', path);
+    async mailboxOpen(path: string, ...options: unknown[]) {
+      record('mailboxOpen', path, ...options);
       this.mailbox = { path };
       return { path, delimiter: '.', uidValidity: 1234n, uidNext: 43, exists: 2, flags: new Set<string>() };
     },
@@ -250,8 +255,49 @@ describe('ImapFlowSession fetch / flags / append', () => {
   });
 });
 
+describe('ImapFlowSession readOnly (REQ-005)', () => {
+  const openArgs = (client: ReturnType<typeof fakeClient>) =>
+    client.calls.filter((c) => c.method === 'mailboxOpen').map((c) => c.args);
+
+  it('opens every folder with EXAMINE ({ readOnly: true }) for select / searchUids / fetchMessages / fetchFlags', async () => {
+    const client = fakeClient(SAKURA_CAPS);
+    const session = new ImapFlowSession(client as never, config, { readOnly: true });
+
+    await session.select('INBOX');
+    await session.fetchMessages('INBOX', [7]);
+    await session.searchUids('INBOX.Sent', { uidFrom: 1 });
+    await session.fetchFlags('INBOX.Trash', 1);
+
+    expect(openArgs(client)).toEqual([
+      ['INBOX', { readOnly: true }],
+      ['INBOX.Sent', { readOnly: true }],
+      ['INBOX.Trash', { readOnly: true }],
+    ]);
+  });
+
+  it('keeps SELECT (no readOnly option) by default for MCP tools and scheduled-send', async () => {
+    const client = fakeClient(SAKURA_CAPS);
+    const session = new ImapFlowSession(client as never, config);
+
+    await session.select('INBOX');
+    await session.setFlags('INBOX.Sent', 7, { seen: true });
+
+    expect(openArgs(client)).toStrictEqual([['INBOX'], ['INBOX.Sent']]);
+  });
+});
+
 describe('openImapSession', () => {
-  beforeEach(() => ctor.mockClear());
+  beforeEach(() => {
+    ctor.mockClear();
+    ctorMailboxOpen.mockClear();
+  });
+
+  it('passes readOnly through to the session so the sync job opens folders with EXAMINE', async () => {
+    await (await openImapSession(config, { readOnly: true })).select('INBOX');
+    await (await openImapSession(config)).select('INBOX');
+
+    expect(ctorMailboxOpen.mock.calls).toStrictEqual([['INBOX', { readOnly: true }], ['INBOX']]);
+  });
 
   it('logs in with the full mail address (not the local part) over implicit TLS', async () => {
     await openImapSession(config);

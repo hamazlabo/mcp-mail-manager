@@ -3,6 +3,7 @@
  * - 移動は CAPABILITY に MOVE があれば UID MOVE、無ければ UID COPY + \Deleted（さくら）。
  * - EXPUNGE は決して発行しない（REQ-032。静的テストで検証）。
  * - 特殊フォルダは SPECIAL-USE 属性を優先し、無ければ設定値（sentFolder / trashFolder）。
+ * - readOnly のセッションは全フォルダを EXAMINE で開く（REQ-005。同期ジョブ用。ADR-0007）。
  */
 import { ImapFlow } from 'imapflow';
 import type { CopyResponseObject, FetchMessageObject, ListResponse, MailboxObject, SearchObject } from 'imapflow';
@@ -38,7 +39,7 @@ export interface ImapSession {
   listFolders(): Promise<ImapFolder[]>;
   /** Sent / Trash の解決。SPECIAL-USE 優先、無ければ MailConfig の sentFolder / trashFolder */
   specialFolders(): Promise<Record<SpecialUse, string>>;
-  /** SELECT（読み書き）。閉じるときも expunge しない */
+  /** SELECT（読み書き。readOnly のセッションでは EXAMINE）。閉じるときも expunge しない */
   select(folder: string): Promise<ImapMailbox>;
   /** UID SEARCH。since は INTERNALDATE 基準（初回同期の 90 日）、uidFrom は `uidFrom:*`（差分同期） */
   searchUids(folder: string, criteria: { since?: Date; uidFrom?: number }): Promise<number[]>;
@@ -58,7 +59,8 @@ export interface ImapSession {
   close(): Promise<void>;
 }
 
-export type ImapSessionFactory = (config: MailConfig) => Promise<ImapSession>;
+/** readOnly: true なら全フォルダを EXAMINE で開く（同期ジョブ用、REQ-005）。既定は SELECT */
+export type ImapSessionFactory = (config: MailConfig, options?: { readOnly?: boolean }) => Promise<ImapSession>;
 
 // ---------------------------------------------------------------------------
 // imapflow 実装
@@ -102,12 +104,16 @@ export class ImapFlowSession implements ImapSession {
   constructor(
     private readonly client: ImapClient,
     private readonly config: MailConfig,
+    private readonly options: { readOnly?: boolean } = {},
   ) {}
 
   /** 既に開いているフォルダは再 SELECT しない（force で強制） */
   private async open(folder: string, force = false): Promise<MailboxObject | undefined> {
     if (!force && this.current === folder) return undefined;
-    const box = await this.client.mailboxOpen(folder);
+    // EXAMINE は新着状態（\Recent）を含めメールボックスの状態を変えない（RFC 3501）
+    const box = this.options.readOnly
+      ? await this.client.mailboxOpen(folder, { readOnly: true })
+      : await this.client.mailboxOpen(folder);
     this.current = folder;
     return box;
   }
@@ -224,7 +230,7 @@ function newUid(res: CopyResponseObject | false, uid: number, folder: string): n
   return mapped;
 }
 
-export const openImapSession: ImapSessionFactory = async (config) => {
+export const openImapSession: ImapSessionFactory = async (config, options) => {
   const client = new ImapFlow({
     host: config.imapHost,
     port: config.imapPort,
@@ -234,5 +240,5 @@ export const openImapSession: ImapSessionFactory = async (config) => {
     logger: false,
   });
   await client.connect();
-  return new ImapFlowSession(client, config);
+  return new ImapFlowSession(client, config, options);
 };

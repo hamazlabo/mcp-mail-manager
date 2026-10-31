@@ -78,3 +78,49 @@ describe('runSync', () => {
     expect(store.messages.size).toBe(1);
   });
 });
+
+describe('runSync はメールサーバの状態を変えない (REQ-005)', () => {
+  it('IMAP セッションを readOnly（EXAMINE）で開く', async () => {
+    const imap = new FakeImapSession({ config });
+    const opened: unknown[] = [];
+    const clock: SyncClock = { now: () => now, remainingMs: () => 10 * 60_000 };
+
+    await runSync({
+      ...deps(imap, new FakeStore(), clock),
+      openImap: async (_config, options) => {
+        opened.push(options);
+        return imap;
+      },
+    });
+
+    expect(opened).toEqual([{ readOnly: true }]);
+  });
+
+  it('初回取込・差分取込・照合（既読化・消失・\\Deleted）を通して、フラグ変更・移動・APPEND を呼ばない', async () => {
+    const imap = new FakeImapSession({ config });
+    const store = new FakeStore();
+    const clock: SyncClock = { now: () => now, remainingMs: () => 10 * 60_000 };
+    const [u1, u2, u3] = [1, 2, 3].map((n) => imap.addMessage('INBOX', eml(n)));
+    imap.addMessage('INBOX.Sent', eml(4), { seen: true });
+
+    await runSync(deps(imap, store, clock));
+    expect(store.messages.size).toBe(4);
+
+    // メールクライアント側の操作を IMAP の中身に直接反映する（フェイクのメソッド経由だと calls に残るため）
+    const inbox = imap.folders.get('INBOX')!.messages;
+    inbox.get(u1)!.flags.add('\\Seen');
+    inbox.delete(u2);
+    inbox.get(u3)!.flags.add('\\Deleted');
+    const u5 = imap.addMessage('INBOX', eml(5));
+
+    await runSync(deps(imap, store, clock));
+
+    expect(imap.calls.filter((c) => /^(setFlags|move|append)\(/.test(c))).toEqual([]);
+    // 照合と差分取込が実際に行われたこと（何もしない同期で通らないように）
+    const inboxItems = [...store.messages.values()].filter((m) => m.folder === 'INBOX');
+    expect(inboxItems.map((m) => [m.uid, m.seen]).sort()).toEqual([
+      [u1, true],
+      [u5, false],
+    ]);
+  });
+});

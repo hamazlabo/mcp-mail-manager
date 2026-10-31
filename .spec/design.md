@@ -163,11 +163,12 @@ MCP ツール一覧（名前は snake_case。入力は zod で定義し SDK が 
 
 ### 3.2 sync（Lambda、15 分間隔）
 
-- **責務**: IMAP 全フォルダの差分取込と状態反映。
-- **対応要件**: REQ-001〜004, NFR-008
+- **責務**: IMAP 全フォルダの差分取込と状態反映。メールサーバの状態は変えない。
+- **対応要件**: REQ-001〜005, NFR-008
+- **読み取り専用**（REQ-005、[ADR-0007](adr/0007-sync-opens-folders-read-only.md)）: `runSync` は `openImap(config, { readOnly: true })` でセッションを開き、全フォルダを `EXAMINE` で開く。呼ぶのは LIST / EXAMINE / UID SEARCH / UID FETCH（`BODY.PEEK[]` と `FLAGS`）だけで、フラグの変更・コピー・移動・APPEND はしない。`SELECT` へのフォールバックは持たない（`EXAMINE` が失敗したらその実行は例外で終わる）。
 - **アルゴリズム**（1 実行、残り時間 13 分を上限に途中終了可）:
   1. `LIST` で全フォルダを列挙。SPECIAL-USE 属性（`\Sent` / `\Trash`）があれば記録、無ければ設定値（既定 `INBOX.Sent` / `INBOX.Trash`。Courier は `INBOX.` 階層・区切り `.`）を使う。
-  2. **取込フェーズ**: 各フォルダを `SELECT` し、`UIDVALIDITY` を SyncState と比較。不一致または未登録なら初回扱い（`UID SEARCH SINCE <90 日前>` で対象 UID を決める）。それ以外は `UID FETCH <lastUid+1>:*`。50 通ずつ `BODY.PEEK[]`（`\Seen` を付けない）+ `FLAGS` + `INTERNALDATE` を取得し、S3 `raw/<id>.eml` へ PUT、DynamoDB へ PutItem（同じ `id` なら上書き = 移動の検出）。50 通ごとに SyncState の `lastUid` を進め、残り時間が無ければ終了（REQ-004）。
+  2. **取込フェーズ**: 各フォルダを `EXAMINE` で開き、`UIDVALIDITY` を SyncState と比較。不一致または未登録なら初回扱い（`UID SEARCH SINCE <90 日前>` で対象 UID を決める）。それ以外は `UID FETCH <lastUid+1>:*`。50 通ずつ `BODY.PEEK[]`（`\Seen` を付けない）+ `FLAGS` + `INTERNALDATE` を取得し、S3 `raw/<id>.eml` へ PUT、DynamoDB へ PutItem（同じ `id` なら上書き = 移動の検出）。50 通ごとに SyncState の `lastUid` を進め、残り時間が無ければ終了（REQ-004）。
   3. **照合フェーズ**（取込がすべて完了した実行でのみ）: 各フォルダで `UID FETCH <minKnownUid>:* (FLAGS)` を取り、DynamoDB（GSI1 `FOLDER#<name>`）の既知 UID と突き合わせる。フラグ差分は UpdateItem、IMAP に無い UID と `\Deleted` 付きの UID は「取込フェーズで他フォルダとして上書きされていなければ」DynamoDB と S3 から削除（REQ-003）。取込フェーズでも `\Deleted` 付きメッセージは取り込まない。
   4. Folder アイテムの `total` / `unread` を更新。
 - **依存**: imap.ts, store.ts, secrets.ts
@@ -190,6 +191,7 @@ MCP ツール一覧（名前は snake_case。入力は zod で定義し SDK が 
 ### 3.4 core/imap.ts（ImapSession）
 
 - 接続ごとに `CAPABILITY` を確認し、移動戦略を決める: `MOVE` があれば `UID MOVE`、無ければ `UID COPY` + `\Deleted` フラグ付与（さくらは後者。**EXPUNGE は呼ばない**ため、移動元には `\Deleted` 付きのコピーが残り、メールクライアント側の expunge で消える。同期の照合フェーズは `\Deleted` 付きメッセージを「消失」として扱い DynamoDB から除外する。`imapflow` の `messageDelete` / `mailboxClose` の expunge 動作を使わず、`mailboxClose` は `mailboxOpen` で `readOnly` でない場合も `noExpunge` 相当の手順で閉じる）。静的テストで `expunge` 文字列がコードに現れないことを検証する（REQ-032）。
+- 開くモード（ADR-0007）: `openImapSession(config, { readOnly: true })` で作ったセッションは、`mailboxOpen(path, { readOnly: true })`（= `EXAMINE`）で全フォルダを開く。これを使うのは同期ジョブだけ。オプション無し（既定）は従来どおり `SELECT` で、MCP ツールと scheduled-send が使う。フラグの変更（STORE、MOVE 非対応時の移動の `\Deleted` を含む）は読み書きで開いたフォルダでしか効かないため。`SELECT` はそのフォルダ内の全メッセージの新着状態（`\Recent`）を消費する。整理操作はエージェントへの明示的な依頼なので、これを許容する。`EXAMINE` は誤った書込みを防ぐ仕組みではない。COPY は禁止されず、imapflow は読み取り専用のフォルダへの STORE を例外にせず黙って捨てる。REQ-005 の保証は、同期ジョブが `setFlags` / `move` / `append` を呼ばないこと（ユニットテストで検証）による。
 - 整理操作は「IMAP 成功 → DynamoDB 更新」の順（REQ-030〜033）。移動後の新 UID は `UID MOVE` / `UID COPY` の `COPYUID` 応答から取り、新 id（Message-ID + 移動先フォルダ）のレコードを作成して旧レコードを削除する（ADR-0006）。
 
 ### 3.5 core/compose.ts
@@ -322,6 +324,7 @@ NFR-001（5 USD 以内、アイドル時 1 USD 未満）を満たす。dev / pro
   - CloudFront Function（`infra/functions/viewer-request.js`）は vitest からそのまま読み込み、`handler(event)` に viewer-request イベントを渡して、well-known の JSON、トークン無し / 期限切れの 401、`/mcp` の URI 書換を検証する。
   - mcp-server はプロセス内で `http.createServer` を起動し、SDK のクライアント（Streamable HTTP）から `initialize` / `tools/list` を実行して検証する（`Mcp-Session-Id` 付きリクエストが拒否されないことを含む）。
   - 静的テスト: `src/` に `expunge` を含む呼出が無いこと（REQ-032）。
+  - 読み取り専用（REQ-005）: `ImapFlowSession` を `readOnly: true` で作ると、全メソッドの `mailboxOpen` が `{ readOnly: true }` で呼ばれる。既定では従来どおりオプション無しで呼ばれる。`runSync` は `openImap` を `{ readOnly: true }` で呼び、初回取込・差分取込・照合を含む 1 回の実行で、フェイク IMAP に `setFlags` / `move` / `append` が記録されない。本文取得は `fetchAll` の `source: true` で、これは imapflow が `BODY.PEEK[]` に変換する。
   - CDK assertions: スタック名の stage 切替、S3 BlockPublicAccess、TTL・ライフサイクル、各 Lambda のロール分離、アラームの存在。
 - 統合: Docker で GreenMail（IMAP/SMTP フェイク）を起動し、`ImapSession` / `SmtpSender` の実装を検証する（`npm run test:integration`、CI 必須ではない。ローカル任意）。コンテナはローカルでは `npm run build && docker build -f docker/Dockerfile .`（ホストのアーキテクチャ）の後 `docker run -p 8000:8000` で起動し、MCP Inspector で疎通確認できる（ARM64 ビルドはデプロイ時に CodeBuild が行う: ADR-0005）。
 - 正常性テスト (`npm run test:smoke`): デプロイ後に dev / prod へ実行する。`CDK_OUTPUTS_FILE` から URL / Cognito 情報を読み、Secrets Manager の smoke-user-password で `InitiateAuth (USER_PASSWORD_AUTH)` によりアクセストークンを得る。対象ユースケース:
@@ -331,6 +334,14 @@ NFR-001（5 USD 以内、アイドル時 1 USD 未満）を満たす。dev / pro
   - REQ-040 / REQ-041: `schedule_message`（sendAt = 11 か月後、宛先 = `smoke-test@example.invalid`。正常性テストはメール設定のシークレットを読まないため自分のアドレスは使わない）→ `list_scheduled_messages` に pending で現れる → `cancel_scheduled_message`。実送信は発生しない（取消に失敗しても宛先ドメインが無効なので届かない）。
   - NFR-005: 各呼出の所要時間を計測し上限超過で失敗。
   - 送信・整理ツールは正常性テストの対象外（実メールボックスを変更しない）。
+- 実機確認（REQ-005、手動 1 回）: `scripts/mailbox-status.ts` は、指定 stage のシークレットで IMAP に接続する。フォルダを開かない `STATUS INBOX (MESSAGES RECENT UNSEEN)` を発行し、件数だけを JSON で出力する。認証情報は出力しない。手順は次のとおり。
+  1. dev と prod の両方に変更をデプロイしておく（両 stage が同じメールボックスを同期しているため）。
+  2. 確認中は、IMAP のメールアプリを閉じ、MCP の整理ツールも使わない（どちらも `SELECT` で新着状態を消費する）。POP 受信システムは止められないので、4 の対照測定で影響を見分ける。
+  3. 外部アカウントから自分宛てにテストメールを送る。
+  4. 届いた後に `mailbox-status` を実行し、`recent ≥ 1` を確認する。0 なら他の接続が先に消費しているので、静かな時間帯に 3 からやり直す。続けて、同期 Lambda を起動せずに 1 分（同期 1 回分）待ち、もう一度 `mailbox-status` を実行して `recent` が変わらないことを確認する（対照測定）。変わっていたら他の接続が消費しているので、3 からやり直す。
+  5. dev の同期 Lambda を手動で 1 回起動する。
+  6. もう一度 `mailbox-status` を実行し、`recent` と `unseen` が 4 と一致することを確認する。`search_messages` でテストメールが取り込まれたことも確認する。
+  - 6 で `recent` が減っていた場合は、3 からもう一度行う。対照測定で変化が無いのに同期の後だけ減ることが再現したら、Courier が `EXAMINE` でも新着状態を消費する実装と判断する。その場合は 1 章の「さくらのメールボックスの制約」に既知の制約として追記する（ADR-0007）。`STATUS` が失敗したときは、スクリプトが 0 件ではなくエラーで終わる。
 
 ### 環境とデプロイ経路
 
@@ -353,6 +364,7 @@ CI/CD テンプレートへの追加: 3 ワークフローとも `npm ci` の後
 | REQ-002 | sync（初回判定、SINCE 90 日） | ユニット |
 | REQ-003 | sync（照合フェーズ） | ユニット |
 | REQ-004 | sync（時間予算・lastUid 保存） | ユニット（時計を注入） |
+| REQ-005 | imap.ts（readOnly で EXAMINE）, sync/handler.ts（readOnly で開く） | ユニット（mailboxOpen のオプション、同期 1 回で状態変更操作 0 回）、手動の実機確認（STATUS の RECENT / UNSEEN が同期の前後で不変） |
 | REQ-010 | search.ts, tools/search_messages | ユニット、正常性テスト |
 | REQ-011 | mime.ts, tools/get_message | ユニット（.eml フィクスチャ: text/plain, html-only, 添付付き）、正常性テスト |
 | REQ-012 | tools/list_folders | ユニット、正常性テスト |
@@ -386,3 +398,4 @@ CI/CD テンプレートへの追加: 3 ワークフローとも `npm ci` の後
 - [ADR-0004](adr/0004-oauth-cognito-preregistered-client.md): MCP クライアント認証を OAuth 2.1 + Amazon Cognito（事前登録アプリクライアント、AgentCore JWT 認可）にする
 - [ADR-0005](adr/0005-arm64-image-deploy-time-build.md): MCP コンテナの ARM64 イメージを `@cdklabs/deploy-time-build`（CodeBuild）でデプロイ時にビルドする
 - [ADR-0006](adr/0006-message-id-includes-folder.md): メッセージ id をフォルダ込みで導出し、移動は「旧レコード削除 + 新レコード作成」にする
+- [ADR-0007](adr/0007-sync-opens-folders-read-only.md): 同期ジョブは IMAP フォルダを読み取り専用（EXAMINE）で開く
